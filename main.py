@@ -1,112 +1,69 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.openapi.docs import get_swagger_ui_html
-import os
 
-# --- CREATE APP FIRST ---
-app = FastAPI(docs_url=None, redoc_url=None, title="BWC Portal API")
+# Create app first
+app = FastAPI(title="BWC Portal API")
 
-# --- ADD CORS IMMEDIATELY (BEFORE ANYTHING ELSE) ---
+# Add CORS immediately
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for now
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-print("CORS middleware added with wildcard origins!")
-
-# --- ADD BASIC HEALTH CHECK ---
+# Basic endpoints
 @app.get("/")
 def read_root():
-    return {"message": "Welcome to BWC Portal API!", "cors": "enabled"}
+    return {"message": "Welcome to BWC Portal API!", "status": "running"}
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "message": "API is running", "cors": "enabled"}
+    return {"status": "healthy"}
 
-print("Basic endpoints created!")
-
-# --- DATABASE SETUP ---
+# Add database setup
 try:
     from database import Base, engine
-    from models import User, Task, Group, Company, PasswordResetToken, Event, Car, Rental, Notification, Contact, DailyCall, TaskHistory
-
-    print("Database imports successful!")
-    # Create database tables
-    print("Creating database tables...")
     Base.metadata.create_all(bind=engine)
-    print("Database tables created successfully!")
-
+    print("Database setup complete!")
 except Exception as e:
-    print(f"Database setup error: {e}")
-    print("Continuing without database setup...")
+    print(f"Database error: {e}")
 
-# --- STATIC FILES ---
+# Add routers one by one
 try:
-    os.makedirs("uploads", exist_ok=True)
-    app.mount("/static", StaticFiles(directory="uploads"), name="static")
-    print("Static files setup successful!")
+    from routers.auth import router as auth_router
+    app.include_router(auth_router)
+    print("Auth router added")
 except Exception as e:
-    print(f"Static files error: {e}")
+    print(f"Auth router error: {e}")
 
-# --- DOCS ENDPOINT ---
-@app.get("/docs", include_in_schema=False)
-async def custom_swagger_ui_html():
-    return get_swagger_ui_html(
-        openapi_url=app.openapi_url,
-        title=app.title + " - Swagger UI",
-        swagger_js_url="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js",
-        swagger_css_url="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css",
-    )
-
-# --- ADD ROUTERS ---
 try:
-    from routers import auth, tasks, groups, calendar, companies, events, cars, rentals, reports, notifications, contacts, daily_calls
-
-    app.include_router(auth.router)
-    print("Auth router added!")
-
-    app.include_router(tasks.router)
-    print("Tasks router added!")
-
-    app.include_router(groups.router)
-    print("Groups router added!")
-
-    app.include_router(calendar.router)
-    print("Calendar router added!")
-
-    app.include_router(companies.router)
-    print("Companies router added!")
-
-    app.include_router(events.router)
-    print("Events router added!")
-
-    app.include_router(cars.router)
-    print("Cars router added!")
-
-    app.include_router(rentals.router)
-    print("Rentals router added!")
-
-    app.include_router(reports.router)
-    print("Reports router added!")
-
-    app.include_router(notifications.router)
-    print("Notifications router added!")
-
-    app.include_router(contacts.router)
-    print("Contacts router added!")
-
-    app.include_router(daily_calls.router)
-    print("Daily calls router added!")
-
-    print("All routers added successfully!")
-
+    from routers.companies import router as companies_router
+    app.include_router(companies_router)
+    print("Companies router added")
 except Exception as e:
-    print(f"Router setup error: {e}")
-    print("Some routers may not be available")
+    print(f"Companies router error: {e}")
 
-print("=== APPLICATION STARTUP COMPLETE ===")
-print("FastAPI app is ready to serve requests with CORS enabled!")
+try:
+    from routers.tasks import router as tasks_router
+    app.include_router(tasks_router)
+    print("Tasks router added")
+except Exception as e:
+    print(f"Tasks router error: {e}")
+
+# Add other routers with error handling
+router_modules = [
+    "groups", "calendar", "events", "cars", "rentals", 
+    "reports", "notifications", "contacts", "daily_calls"
+]
+
+for module_name in router_modules:
+    try:
+        module = __import__(f"routers.{module_name}", fromlist=["router"])
+        app.include_router(module.router)
+        print(f"{module_name} router added")
+    except Exception as e:
+        print(f"{module_name} router error: {e}")
+
+print("=== BWC Portal API Started Successfully ===")
