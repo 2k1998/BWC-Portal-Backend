@@ -5,6 +5,21 @@ from fastapi.openapi.docs import get_swagger_ui_html
 from routers import auth, tasks, groups, calendar, companies, events, cars, rentals, reports, notifications, contacts, daily_calls
 import os
 
+# --- ADD DATABASE IMPORTS ---
+from database import Base, engine
+from models import (
+    User, Task, Group, Company, PasswordResetToken, Event, Car, Rental, 
+    Notification, Contact, DailyCall, TaskHistory
+)
+
+# --- CREATE DATABASE TABLES ON STARTUP ---
+print("Creating database tables...")
+try:
+    Base.metadata.create_all(bind=engine)
+    print("Database tables created successfully!")
+except Exception as e:
+    print(f"Error creating database tables: {e}")
+
 # --- THE FIX: Configure static file serving ---
 # Create a directory for uploads if it doesn't exist
 os.makedirs("uploads", exist_ok=True)
