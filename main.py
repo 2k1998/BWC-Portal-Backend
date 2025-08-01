@@ -25,14 +25,11 @@ async def custom_swagger_ui_html():
         swagger_css_url="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css",
     )
 
-# CORS configuration (no changes here)
+# CORS configuration - UPDATED for production
 origins = [
-    "http://localhost",
-    "http://localhost:8080", 
-    "http://127.0.0.1:8000",
-    "http://localhost:5173",
-    "https://*.ngrok-free.app",  # <-- ADD THIS LINE
-    "https://*.ngrok.io",        # <-- AND THIS (older ngrok domains)
+    "https://bwc-portal-frontend-ftio.vercel.app",  # Your deployed frontend
+    "http://localhost:5173",  # Keep for local development
+    "http://localhost:3000",  # Alternative local development port
 ]
 
 app.add_middleware(
@@ -43,7 +40,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include all your routers (no changes here)
+# Include all your routers
 app.include_router(auth.router)
 app.include_router(tasks.router)
 app.include_router(groups.router)
@@ -54,8 +51,8 @@ app.include_router(cars.router)
 app.include_router(rentals.router)
 app.include_router(reports.router)
 app.include_router(notifications.router)
-app.include_router(contacts.router)  # <-- ADD THIS LINE
-app.include_router(daily_calls.router) # <-- ADD THIS LINE
+app.include_router(contacts.router)
+app.include_router(daily_calls.router)
 
 @app.get("/")
 def read_root():
