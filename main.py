@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from pydantic import BaseModel, EmailStr
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
 import os
@@ -36,7 +36,7 @@ class UserResponse(BaseModel):
     email: EmailStr
     first_name: Optional[str] = None
     surname: Optional[str] = None
-    role: str = "user"
+    role: str = "Agent"  # Default role should be "Agent", not "user"
     is_active: bool = True
     full_name: str
 
@@ -46,15 +46,15 @@ class UserCreate(BaseModel):
     first_name: Optional[str] = None
     surname: Optional[str] = None
 
-# Test users database (in memory)
+# Test users database (in memory) - FIXED ADMIN ROLE
 USERS_DB = {
     "admin@bwc.com": {
         "id": 1,
         "email": "admin@bwc.com",
-        "password": "admin123",  # In real app, this would be hashed
-        "first_name": "Admin",
+        "password": "admin123",
+        "first_name": "Administrator",
         "surname": "User",
-        "role": "admin",
+        "role": "admin",  # This is correct
         "is_active": True
     },
     "test@bwc.com": {
@@ -63,7 +63,7 @@ USERS_DB = {
         "password": "test123",
         "first_name": "Test",
         "surname": "User",
-        "role": "user",
+        "role": "Agent",  # Regular users should be "Agent"
         "is_active": True
     }
 }
@@ -124,7 +124,7 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
     
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user["email"]}, expires_delta=access_token_expires
+        data={"sub": user["email"], "id": user["id"]}, expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
@@ -141,7 +141,7 @@ def register_user(user: UserCreate):
         "password": user.password,
         "first_name": user.first_name,
         "surname": user.surname,
-        "role": "user",  # New users are regular users
+        "role": "Agent",  # New users are Agents
         "is_active": True
     }
     
@@ -168,44 +168,114 @@ def read_users_me(current_user: dict = Depends(get_current_user)):
         full_name=f"{current_user.get('first_name', '')} {current_user.get('surname', '')}".strip() or current_user["email"]
     )
 
-# Test companies endpoint
+# Companies endpoint
 @app.get("/companies/")
 def get_companies(current_user: dict = Depends(get_current_user)):
     return [
         {"id": 1, "name": "BWC Company", "vat_number": "123456789"},
-        {"id": 2, "name": "Test Corporation", "vat_number": "987654321"}
+        {"id": 2, "name": "Test Corporation", "vat_number": "987654321"},
+        {"id": 3, "name": "Demo Ltd", "vat_number": "555666777"}
     ]
 
-# Test tasks endpoint
+# Tasks endpoint
 @app.get("/tasks/")
 def get_tasks(current_user: dict = Depends(get_current_user)):
     return [
         {
             "id": 1,
-            "title": "Welcome Task",
-            "description": "This is a test task to show the system is working",
+            "title": "Welcome to BWC Portal",
+            "description": "This is your first task in the system",
             "priority": "high",
             "status": "new",
-            "owner_id": current_user["id"]
+            "owner_id": current_user["id"],
+            "deadline": "2025-08-10T10:00:00Z"
+        },
+        {
+            "id": 2,
+            "title": "Review System Features",
+            "description": "Explore all the features available in the portal",
+            "priority": "normal",
+            "status": "pending",
+            "owner_id": current_user["id"],
+            "deadline": "2025-08-15T15:30:00Z"
         }
     ]
 
+# Notifications endpoint
+@app.get("/notifications/me")
+def get_my_notifications(current_user: dict = Depends(get_current_user)):
+    return [
+        {
+            "id": 1,
+            "message": f"Welcome to BWC Portal, {current_user.get('first_name', 'User')}!",
+            "is_read": False,
+            "created_at": "2025-08-01T10:00:00Z"
+        }
+    ]
+
+# Daily calls endpoint
+@app.get("/daily-calls/me")
+def get_my_daily_calls(current_user: dict = Depends(get_current_user)):
+    return [
+        {
+            "id": 1,
+            "contact_name": "John Doe",
+            "phone_number": "+1234567890",
+            "notes": "Follow up on proposal",
+            "scheduled_for": "2025-08-01T14:00:00Z"
+        }
+    ]
+
+# Calendar events endpoint
+@app.get("/calendar/events")
+def get_calendar_events(current_user: dict = Depends(get_current_user)):
+    return [
+        {
+            "title": "Team Meeting",
+            "start": "2025-08-01T09:00:00Z",
+            "end": "2025-08-01T10:00:00Z",
+            "type": "meeting",
+            "allDay": False
+        },
+        {
+            "title": "Project Deadline",
+            "start": "2025-08-15",
+            "end": "2025-08-15",
+            "type": "deadline",
+            "allDay": True
+        }
+    ]
+
+# Events endpoint
+@app.get("/events/upcoming")
+def get_upcoming_event(current_user: dict = Depends(get_current_user)):
+    return {
+        "id": 1,
+        "title": "BWC Portal Launch Event",
+        "description": "Celebrating the successful deployment of our portal",
+        "location": "Main Office",
+        "event_date": "2025-08-05T18:00:00Z"
+    }
+
 print("=== BWC Portal API Started Successfully ===")
 print("🔑 Test Login Credentials:")
-print("   👤 Admin User:")
+print("   👤 ADMINISTRATOR:")
 print("      Email: admin@bwc.com")
 print("      Password: admin123")
 print("      Role: admin")
 print("")
-print("   👤 Regular User:")  
+print("   👤 Regular Agent:")  
 print("      Email: test@bwc.com")
 print("      Password: test123")
-print("      Role: user")
+print("      Role: Agent")
 print("==================================================")
-print("✅ Features Available:")
-print("   - JWT Authentication")
-print("   - User Registration") 
-print("   - Role-based Access (admin/user)")
-print("   - Protected Endpoints")
-print("   - Test Data for Companies & Tasks")
+print("✅ Available Endpoints:")
+print("   - Authentication (login/register)")
+print("   - User Profile (/users/me)")
+print("   - Companies (/companies/)")
+print("   - Tasks (/tasks/)")
+print("   - Notifications (/notifications/me)")
+print("   - Daily Calls (/daily-calls/me)")
+print("   - Calendar Events (/calendar/events)")
+print("   - Upcoming Events (/events/upcoming)")
 print("==================================================")
