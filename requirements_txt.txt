@@ -23,11 +23,9 @@ secure-smtplib==0.1.1
 
 # File handling and data processing
 openpyxl==3.1.2
-python-csv==1.0
 
 # Pydantic for data validation
 pydantic==2.5.0
 
 # Additional utilities that might be needed
 requests==2.31.0
-pathlib2==2.3.7
