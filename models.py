@@ -115,7 +115,7 @@ class User(Base):
     first_name = Column(String, nullable=True)
     surname = Column(String, nullable=True)
     birthday = Column(Date, nullable=True)
-    role = Column(String, default="Agent", nullable=False)
+    role = Column(String, default="user", nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     profile_picture_url = Column(String, nullable=True)
 
