@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.openapi.docs import get_swagger_ui_html
@@ -6,7 +6,7 @@ from routers import (
     auth, tasks, groups, calendar, companies, events, cars, rentals, reports,
     notifications, contacts, daily_calls, projects, sales, payments, car_finance, documents, task_management
 )
-import os, logging
+import os, re
 
 # Ensure uploads directory exists
 os.makedirs("uploads", exist_ok=True)
@@ -14,12 +14,13 @@ os.makedirs("uploads", exist_ok=True)
 app = FastAPI(docs_url=None, redoc_url=None, title="BWC Portal API")
 
 # -----------------------------
-# CORS (Render-friendly & lenient)
+# CORS (Render-friendly)
 # -----------------------------
 FRONTEND_URL = os.getenv("FRONTEND_URL", "").strip()
-CORS_EXTRA_ORIGINS = os.getenv("CORS_EXTRA_ORIGINS", "").strip()
+EXTRA_ORIGINS = [o.strip() for o in os.getenv("CORS_EXTRA_ORIGINS", "").split(",") if o.strip()]
 
-origins = [
+# Always keep localhost for dev
+allow_origins = [
     "http://localhost",
     "http://localhost:3000",
     "http://localhost:5173",
@@ -27,23 +28,25 @@ origins = [
 ]
 
 if FRONTEND_URL:
-    origins.append(FRONTEND_URL)
+    allow_origins.append(FRONTEND_URL)
 
-if CORS_EXTRA_ORIGINS:
-    origins.extend([o.strip() for o in CORS_EXTRA_ORIGINS.split(",") if o.strip()])
+allow_origins.extend(EXTRA_ORIGINS)
 
-# If you are NOT using cookies for auth, disable credentials and allow '*'
-# This simplifies CORS a lot. You are using Bearer tokens, so this is fine.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins if FRONTEND_URL else ["*"],  # exact list in prod; '*' fallback if not set
-    allow_origin_regex=r"^https://.*onrender\.com$",   # also allow Render preview domains
-    allow_credentials=False,                            # IMPORTANT: false so we can use '*' when needed
+    allow_origins=allow_origins,                 # explicit list (works with credentials if you need later)
+    allow_origin_regex=r"^https://.*onrender\.com$",  # also allow Render preview/static site URLs
+    allow_credentials=False,                     # you use Bearer tokens, so keep this False (simplifies CORS)
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*"],                         # includes Authorization, Content-Type, etc.
 )
 
-logging.getLogger("uvicorn").info(f"CORS allow_origins: {origins}")
+# -----------------------------
+# CORS preflight handler
+# -----------------------------
+@app.options("/{rest_of_path:path}")
+def cors_preflight(rest_of_path: str):
+    return Response(status_code=204)
 
 # -----------------------------
 # Static files (serve uploaded files)
