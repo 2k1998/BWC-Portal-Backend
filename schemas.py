@@ -13,6 +13,7 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str
+    birthday: Optional[date] = None
 
 class UserResponse(UserBase):
     id: int

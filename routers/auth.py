@@ -82,7 +82,7 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
         hashed_password=hashed_password,
         first_name=user.first_name,
         surname=user.surname,
-        birthday=user.birthday
+        birthday=getattr(user, "birthday", None)
     )
     db.add(new_user)
     db.commit()
