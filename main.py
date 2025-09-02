@@ -8,40 +8,58 @@ from routers import (
 )
 import os
 
-# Create a directory for uploads if it doesn't exist
+# Ensure uploads directory exists
 os.makedirs("uploads", exist_ok=True)
 
 app = FastAPI(docs_url=None, redoc_url=None, title="BWC Portal API")
 
-# Mount the 'uploads' directory to be served at the '/static' path
-app.mount("/static", StaticFiles(directory="uploads"), name="static")
+# -----------------------------
+# CORS (Render-friendly)
+# -----------------------------
+# Set FRONTEND_URL in Render (e.g., https://bwc-portal-frontend.onrender.com)
+FRONTEND_URL = os.getenv("FRONTEND_URL", "").strip()
+# Optional: comma-separated extra origins (e.g., preview deployments)
+CORS_EXTRA_ORIGINS = os.getenv("CORS_EXTRA_ORIGINS", "").strip()
 
-@app.get("/docs", include_in_schema=False)
-async def custom_swagger_ui_html():
-    return get_swagger_ui_html(
-        openapi_url=app.openapi_url,
-        title=app.title + " - Swagger UI",
-        swagger_js_url="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js",
-        swagger_css_url="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css",
-    )
-
-# CORS configuration
 origins = [
     "http://localhost",
-    "http://localhost:8080",
-    "http://127.0.0.1:8000",
+    "http://localhost:3000",
     "http://localhost:5173",
+    "http://127.0.0.1:8000",
 ]
+
+if FRONTEND_URL:
+    origins.append(FRONTEND_URL)
+
+if CORS_EXTRA_ORIGINS:
+    for o in CORS_EXTRA_ORIGINS.split(','):
+        o = o.strip()
+        if o:
+            origins.append(o)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=origins,        # must be explicit when allow_credentials=True
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Include all routers
+# -----------------------------
+# Static files (serve uploaded files)
+# -----------------------------
+app.mount("/static", StaticFiles(directory="uploads"), name="static")
+
+# -----------------------------
+# Swagger UI (since docs_url=None)
+# -----------------------------
+@app.get("/docs", include_in_schema=False)
+async def custom_swagger_ui_html():
+    return get_swagger_ui_html(openapi_url="/openapi.json", title="BWC Portal API Docs")
+
+# -----------------------------
+# Routers
+# -----------------------------
 app.include_router(auth.router)
 app.include_router(tasks.router)
 app.include_router(groups.router)
@@ -57,10 +75,11 @@ app.include_router(daily_calls.router)
 app.include_router(projects.router)
 app.include_router(sales.router)
 app.include_router(payments.router)
-app.include_router(car_finance.router)  # <-- added
+app.include_router(car_finance.router)
 app.include_router(documents.router)
 app.include_router(task_management.router)
 
+
 @app.get("/")
-def read_root():
+async def read_root():
     return {"message": "Welcome to BWC Portal API!"}
