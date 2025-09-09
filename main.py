@@ -4,7 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.openapi.docs import get_swagger_ui_html
 from routers import (
     auth, tasks, groups, calendar, companies, events, cars, rentals, reports,
-    notifications, contacts, daily_calls, projects, sales, payments, car_finance, documents, task_management
+    notifications, contacts, daily_calls, projects, sales, payments, car_finance, documents, task_management, chat, approvals, websocket
 )
 import os, re
 
@@ -81,6 +81,9 @@ app.include_router(payments.router)
 app.include_router(car_finance.router)
 app.include_router(documents.router)
 app.include_router(task_management.router)
+app.include_router(chat.router)
+app.include_router(approvals.router)
+app.include_router(websocket.router)
 
 
 @app.get("/")

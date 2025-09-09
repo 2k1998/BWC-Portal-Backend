@@ -116,19 +116,61 @@ def update_user_me(user_update: UserUpdate, db: Session = Depends(get_db), curre
     return current_user
 
 @router.post("/users/me/upload-picture", response_model=UserResponse)
-def upload_profile_picture(file: UploadFile = File(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def upload_profile_picture(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    # Validate file type
+    allowed_types = {"image/jpeg", "image/jpg", "image/png", "image/gif"}
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid file type. Allowed types: {', '.join(allowed_types)}"
+        )
+    
+    # Validate file size (5MB max)
+    max_size = 5 * 1024 * 1024  # 5MB
+    contents = await file.read()
+    if len(contents) > max_size:
+        raise HTTPException(
+            status_code=400,
+            detail="File too large. Maximum size is 5MB"
+        )
+    
+    # Reset file pointer
+    await file.seek(0)
+    
+    # Create upload directory
     upload_dir = Path("uploads")
     upload_dir.mkdir(exist_ok=True)
-    file_extension = Path(file.filename).suffix
+    
+    # Generate unique filename
+    file_extension = Path(file.filename).suffix.lower()
     unique_filename = f"{uuid.uuid4()}{file_extension}"
     file_path = upload_dir / unique_filename
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-    file_url = f"/static/{unique_filename}"
-    current_user.profile_picture_url = file_url
-    db.commit()
-    db.refresh(current_user)
-    return current_user
+    
+    try:
+        # Save file
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        # Update user profile
+        file_url = f"/static/{unique_filename}"
+        current_user.profile_picture_url = file_url
+        db.commit()
+        db.refresh(current_user)
+        
+        return current_user
+        
+    except Exception as e:
+        # Clean up file if database operation fails
+        if file_path.exists():
+            file_path.unlink()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to upload profile picture: {str(e)}"
+        )
 
 @router.get("/users/all", response_model=List[UserResponse])
 def list_all_users(
@@ -146,6 +188,16 @@ def list_all_users(
             (User.surname.ilike(search_pattern))
         )
     return query.all()
+
+@router.get("/users/basic", response_model=List[UserResponse])
+def list_users_basic(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get basic user info for chat/collaboration - accessible to all authenticated users"""
+    # Return only active users with basic info
+    users = db.query(User).filter(User.is_active == True).all()
+    return users
 
 @router.get("/users/{user_id}", response_model=UserResponse)
 def get_user_by_id(user_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

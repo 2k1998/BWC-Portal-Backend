@@ -13,9 +13,9 @@ router = APIRouter(prefix="/tasks", tags=["tasks"])
 
 @router.post("/", response_model=TaskResponse)
 def create_task(task: TaskCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    check_roles(current_user, ["admin"])
-
-    # --- MODIFIED: Use provided owner_id or default to current user ---
+    # Allow all authenticated users to create tasks
+    
+    # Use provided owner_id or default to current user
     task_owner_id = task.owner_id if task.owner_id is not None else current_user.id
 
     # Check if the specified owner exists
@@ -26,21 +26,21 @@ def create_task(task: TaskCreate, db: Session = Depends(get_db), current_user: U
     # Create a dictionary from the task schema, excluding the owner_id we've already handled
     task_data = task.dict(exclude={"owner_id"})
     
-    new_task = Task(**task_data, owner_id=task_owner_id)
+    # Create task with both owner and creator information
+    new_task = Task(**task_data, owner_id=task_owner_id, created_by_id=current_user.id)
     db.add(new_task)
     db.commit()
     db.refresh(new_task)
     
-    # --- NEW: Notify the new owner if they are not the creator ---
+    # Notify the new owner if they are not the creator
     if new_task.owner_id != current_user.id:
         notification = Notification(
             user_id=new_task.owner_id,
-            message=f"You have been assigned a new task: '{new_task.title}'",
+            message=f"{current_user.full_name} has assigned you a new task: '{new_task.title}'",
             link="/tasks"
         )
         db.add(notification)
         db.commit()
-    # --- END NEW ---
 
     return new_task
 
