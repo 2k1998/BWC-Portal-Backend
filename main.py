@@ -9,6 +9,7 @@ from routers import (
 import os, re
 import logging
 import time
+from datetime import datetime
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -94,9 +95,17 @@ async def log_requests(request: Request, call_next):
     
     # Log request details
     logger.info(f"Request: {request.method} {request.url}")
-    logger.info(f"Headers: {dict(request.headers)}")
+    logger.info(f"Origin: {request.headers.get('origin', 'No Origin')}")
+    logger.info(f"User-Agent: {request.headers.get('user-agent', 'No User-Agent')}")
     
     response = await call_next(request)
+    
+    # Add additional CORS headers to ensure compatibility
+    if request.headers.get('origin'):
+        response.headers["Access-Control-Allow-Origin"] = request.headers.get('origin')
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+        response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Accept, Origin, User-Agent, DNT, Cache-Control, X-Mx-ReqToken, Keep-Alive, X-Requested-With, If-Modified-Since"
     
     # Log response details
     process_time = time.time() - start_time
@@ -152,3 +161,14 @@ app.include_router(websocket.router)
 @app.get("/")
 async def read_root():
     return {"message": "Welcome to BWC Portal API!"}
+
+@app.get("/health")
+async def health_check():
+    """Simple health check endpoint"""
+    return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+
+@app.get("/cors-test")
+async def cors_test():
+    """Test endpoint for CORS debugging"""
+    return {"cors": "working", "message": "If you can see this, CORS is working!"}
+
