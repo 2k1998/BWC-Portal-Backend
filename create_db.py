@@ -10,7 +10,10 @@ from database import Base, engine
 from models import (
     User, Task, Group, Company, PasswordResetToken, Event, Car, Rental, 
     Notification, Contact, DailyCall, TaskHistory, Project,
-    Sale, EmployeeCommissionRule, MonthlyCommissionSummary, Payment  # <-- Added new models
+    Sale, EmployeeCommissionRule, MonthlyCommissionSummary, Payment,
+    CarIncome, CarExpense, TaskAssignment, TaskConversation, TaskMessage, 
+    TaskNotification, ChatConversation, ChatMessage, ApprovalRequest, 
+    ApprovalNotification, Document  # <-- Added missing models
 )
 
 def main():
