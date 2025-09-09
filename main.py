@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Response
+from fastapi import FastAPI, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.openapi.docs import get_swagger_ui_html
@@ -8,6 +8,7 @@ from routers import (
 )
 import os, re
 import logging
+import time
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -69,6 +70,7 @@ allow_origins = [
     "http://localhost:3000",
     "http://localhost:5173",
     "http://127.0.0.1:8000",
+    "https://bwc-portal-frontend.onrender.com",  # Add explicit frontend domain
 ]
 
 if FRONTEND_URL:
@@ -80,10 +82,27 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=allow_origins,                 # explicit list (works with credentials if you need later)
     allow_origin_regex=r"^https://.*onrender\.com$",  # also allow Render preview/static site URLs
-    allow_credentials=False,                     # you use Bearer tokens, so keep this False (simplifies CORS)
-    allow_methods=["*"],
+    allow_credentials=True,                      # Enable credentials for auth headers
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],                         # includes Authorization, Content-Type, etc.
 )
+
+# Add request logging middleware
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start_time = time.time()
+    
+    # Log request details
+    logger.info(f"Request: {request.method} {request.url}")
+    logger.info(f"Headers: {dict(request.headers)}")
+    
+    response = await call_next(request)
+    
+    # Log response details
+    process_time = time.time() - start_time
+    logger.info(f"Response: {response.status_code} in {process_time:.4f}s")
+    
+    return response
 
 # -----------------------------
 # CORS preflight handler
