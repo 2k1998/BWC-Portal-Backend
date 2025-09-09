@@ -2,7 +2,7 @@ from datetime import datetime, date
 from pydantic import BaseModel, EmailStr, ConfigDict, computed_field, validator, Field
 from typing import Optional, List
 from enum import Enum
-from models import GasTankLevel, TaskStatus, ProjectStatus, ProjectType, SaleType, SaleStatus, CommissionStatus, PaymentType, PaymentStatus
+from models import GasTankLevel, TaskStatus, ProjectStatus, ProjectType, SaleType, SaleStatus, CommissionStatus, PaymentType, PaymentStatus, ApprovalRequestType, ApprovalStatus
 from decimal import Decimal
 
 # --- User Schemas ---
@@ -20,6 +20,8 @@ class UserResponse(UserBase):
     is_active: bool
     role: str
     profile_picture_url: Optional[str] = None
+    last_seen: Optional[datetime] = None
+    is_online: bool = False
 
     @computed_field
     @property
@@ -172,6 +174,7 @@ class TaskResponse(BaseModel):
     status_updated_by: Optional[int]
 
     owner_id: int
+    created_by_id: int
     group_id: Optional[int]
     company_id: Optional[int]
     created_at: datetime
@@ -179,6 +182,7 @@ class TaskResponse(BaseModel):
 
     # Include related objects
     owner: Optional["UserResponse"]
+    created_by: Optional["UserResponse"]
     status_updater: Optional["UserResponse"]
 
     class Config:
@@ -876,3 +880,102 @@ class EmployeeCommissionSummary(BaseModel):
     ytd_commission: Decimal
     pending_commission: Decimal
     last_payment_date: Optional[date] = None
+
+
+# ==================== CHAT SYSTEM SCHEMAS ====================
+
+class ChatMessageCreate(BaseModel):
+    content: str
+    message_type: Optional[str] = "text"
+
+class ChatMessageOut(BaseModel):
+    id: int
+    conversation_id: int
+    sender_id: int
+    content: str
+    message_type: str
+    sent_at: datetime
+    read_at: Optional[datetime] = None
+    is_system_message: bool
+    approval_request_id: Optional[int] = None
+    
+    # Nested sender info
+    sender: UserBasicInfo
+    
+    model_config = ConfigDict(from_attributes=True)
+
+class ChatConversationOut(BaseModel):
+    id: int
+    participant1_id: int
+    participant2_id: int
+    created_at: datetime
+    updated_at: datetime
+    last_message_at: Optional[datetime] = None
+    last_message_preview: Optional[str] = None
+    
+    # Nested participant info
+    participant1: UserBasicInfo
+    participant2: UserBasicInfo
+    messages: List[ChatMessageOut] = []
+    
+    model_config = ConfigDict(from_attributes=True)
+
+class ChatConversationSummary(BaseModel):
+    """Lightweight conversation info for chat hub list"""
+    id: int
+    other_participant: UserBasicInfo
+    last_message_at: Optional[datetime] = None
+    last_message_preview: Optional[str] = None
+    unread_count: int = 0
+    
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ==================== APPROVAL SYSTEM SCHEMAS ====================
+
+class ApprovalRequestCreate(BaseModel):
+    approver_id: int
+    title: str
+    description: str
+    request_type: Optional[str] = "general"
+    request_metadata: Optional[dict] = None
+
+class ApprovalRequestResponse(BaseModel):
+    action: str  # "approve", "reject", "discussion"
+    response_message: Optional[str] = None
+
+class ApprovalRequestOut(BaseModel):
+    id: int
+    requester_id: int
+    approver_id: int
+    title: str
+    description: str
+    request_type: str
+    status: str
+    request_metadata: Optional[dict] = None
+    created_at: datetime
+    updated_at: datetime
+    responded_at: Optional[datetime] = None
+    response_message: Optional[str] = None
+    
+    # Nested user info
+    requester: UserBasicInfo
+    approver: UserBasicInfo
+    
+    model_config = ConfigDict(from_attributes=True)
+
+class ApprovalNotificationOut(BaseModel):
+    id: int
+    user_id: int
+    approval_request_id: int
+    notification_type: str
+    title: str
+    message: str
+    is_read: bool
+    created_at: datetime
+    read_at: Optional[datetime] = None
+    
+    # Nested approval request info
+    approval_request: ApprovalRequestOut
+    
+    model_config = ConfigDict(from_attributes=True)

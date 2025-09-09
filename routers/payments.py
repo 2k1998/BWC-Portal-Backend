@@ -13,7 +13,7 @@ from .utils import check_roles
 router = APIRouter(prefix="/payments", tags=["payments"])
 
 @router.post("/", response_model=schemas.PaymentResponse, status_code=status.HTTP_201_CREATED)
-async def create_payment(
+def create_payment(
     payment: schemas.PaymentCreate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
@@ -57,7 +57,7 @@ async def create_payment(
     return db_payment
 
 @router.post("/commission/{commission_summary_id}", response_model=schemas.PaymentResponse, status_code=status.HTTP_201_CREATED)
-async def create_commission_payment(
+def create_commission_payment(
     commission_summary_id: int,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
@@ -123,7 +123,7 @@ async def create_commission_payment(
     return db_payment
 
 @router.get("/", response_model=List[schemas.PaymentListItem])
-async def get_payments(
+def get_payments(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
     payment_type_filter: Optional[models.PaymentType] = None,
@@ -212,7 +212,7 @@ async def get_payments(
     return payment_list
 
 @router.get("/{payment_id}", response_model=schemas.PaymentResponse)
-async def get_payment(
+def get_payment(
     payment_id: int,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
@@ -233,7 +233,7 @@ async def get_payment(
     return payment
 
 @router.put("/{payment_id}", response_model=schemas.PaymentResponse)
-async def update_payment(
+def update_payment(
     payment_id: int,
     payment_update: schemas.PaymentUpdate,
     db: Session = Depends(get_db),
@@ -268,7 +268,7 @@ async def update_payment(
     return db_payment
 
 @router.patch("/{payment_id}/status", response_model=schemas.PaymentResponse)
-async def update_payment_status(
+def update_payment_status(
     payment_id: int,
     status_update: schemas.PaymentStatusUpdate,
     db: Session = Depends(get_db),
@@ -318,7 +318,7 @@ async def update_payment_status(
     return db_payment
 
 @router.post("/{payment_id}/approve", response_model=schemas.PaymentResponse)
-async def approve_payment(
+def approve_payment(
     payment_id: int,
     approval: schemas.PaymentApproval,
     db: Session = Depends(get_db),
@@ -355,7 +355,7 @@ async def approve_payment(
     return db_payment
 
 @router.delete("/{payment_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_payment(
+def delete_payment(
     payment_id: int,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)

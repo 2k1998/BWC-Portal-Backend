@@ -82,19 +82,23 @@ def create_group_task(group_id: int, task: GroupTaskCreate, db: Session = Depend
     if not group:
         raise HTTPException(status_code=404, detail="Group not found")
 
-    check_roles(current_user, ["admin"])
+    # Allow group members and admins to create group tasks
+    is_member = current_user in group.members
+    is_admin = current_user.role == "admin"
+    
+    if not (is_admin or is_member):
+        raise HTTPException(status_code=403, detail="Not authorized to create tasks for this group")
 
     new_task = Task(
         title=task.title,
         description=task.description,
-        # --- NEW: Add start_date and deadline_all_day ---
         start_date=task.start_date,
         deadline_all_day=task.deadline_all_day,
-        # --- END NEW ---
         deadline=task.deadline,
         urgency=task.urgency,
         important=task.important,
         owner_id=current_user.id,
+        created_by_id=current_user.id,
         group_id=group_id
     )
     db.add(new_task)

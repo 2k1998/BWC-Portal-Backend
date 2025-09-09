@@ -118,6 +118,8 @@ class User(Base):
     role = Column(String, default="user", nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     profile_picture_url = Column(String, nullable=True)
+    last_seen = Column(DateTime(timezone=True), nullable=True)
+    is_online = Column(Boolean, default=False)
 
     # --- Add this line for permissions ---
     permissions = Column(JSON, default=list)  # Store array of permission strings
@@ -189,11 +191,13 @@ class Task(Base):
     status_updated_by = Column(Integer, ForeignKey("users.id"))
     
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     group_id = Column(Integer, ForeignKey("groups.id"))
     company_id = Column(Integer, ForeignKey("companies.id"))
     
     # Fixed relationships with explicit foreign_keys
     owner = relationship("User", foreign_keys=[owner_id], back_populates="tasks")
+    created_by = relationship("User", foreign_keys=[created_by_id])
     status_updater = relationship("User", foreign_keys=[status_updated_by])
     group = relationship("Group")
     company = relationship("Company")
@@ -724,3 +728,118 @@ class TaskNotification(Base):
     user = relationship("User", back_populates="task_notifications")
     task = relationship("Task")
     assignment = relationship("TaskAssignment")
+
+
+# ==================== CHAT SYSTEM MODELS ====================
+
+class ChatConversation(Base):
+    """Direct messaging conversations between users"""
+    __tablename__ = "chat_conversations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    participant1_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    participant2_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    
+    # Last message info for quick display
+    last_message_at = Column(DateTime(timezone=True), nullable=True)
+    last_message_preview = Column(String(200), nullable=True)
+    
+    participant1 = relationship("User", foreign_keys=[participant1_id])
+    participant2 = relationship("User", foreign_keys=[participant2_id])
+    messages = relationship("ChatMessage", back_populates="conversation", cascade="all, delete-orphan", order_by="ChatMessage.sent_at")
+
+
+class ChatMessage(Base):
+    """Individual messages in chat conversations"""
+    __tablename__ = "chat_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    conversation_id = Column(Integer, ForeignKey("chat_conversations.id"), nullable=False)
+    sender_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    
+    content = Column(Text, nullable=False)
+    message_type = Column(String(20), default="text")  # text, system, approval_request
+    
+    sent_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    read_at = Column(DateTime(timezone=True), nullable=True)
+    is_system_message = Column(Boolean, default=False)
+    
+    # For approval requests
+    approval_request_id = Column(Integer, ForeignKey("approval_requests.id"), nullable=True)
+    
+    conversation = relationship("ChatConversation", back_populates="messages")
+    sender = relationship("User")
+    approval_request = relationship("ApprovalRequest", back_populates="message")
+
+
+# ==================== APPROVAL SYSTEM MODELS ====================
+
+class ApprovalRequestType(str, enum.Enum):
+    """Types of approval requests"""
+    GENERAL = "general"
+    EXPENSE = "expense"
+    TASK = "task"
+    PROJECT = "project"
+    LEAVE = "leave"
+    PURCHASE = "purchase"
+
+
+class ApprovalStatus(str, enum.Enum):
+    """Status of approval requests"""
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    DISCUSSION = "discussion"
+    CANCELLED = "cancelled"
+
+
+class ApprovalRequest(Base):
+    """Approval requests that can be sent between users"""
+    __tablename__ = "approval_requests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    requester_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    approver_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    
+    title = Column(String(255), nullable=False)
+    description = Column(Text, nullable=False)
+    request_type = Column(Enum(ApprovalRequestType), default=ApprovalRequestType.GENERAL)
+    status = Column(Enum(ApprovalStatus), default=ApprovalStatus.PENDING)
+    
+    # Additional data (JSON for flexibility)
+    request_metadata = Column(JSON, nullable=True)  # Can store amounts, dates, etc.
+    
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    responded_at = Column(DateTime(timezone=True), nullable=True)
+    
+    # Response details
+    response_message = Column(Text, nullable=True)
+    
+    requester = relationship("User", foreign_keys=[requester_id])
+    approver = relationship("User", foreign_keys=[approver_id])
+    message = relationship("ChatMessage", back_populates="approval_request", uselist=False)
+    notifications = relationship("ApprovalNotification", back_populates="approval_request", cascade="all, delete-orphan")
+
+
+class ApprovalNotification(Base):
+    """Notifications specifically for approval requests"""
+    __tablename__ = "approval_notifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    approval_request_id = Column(Integer, ForeignKey("approval_requests.id"), nullable=False)
+    
+    notification_type = Column(String(50), nullable=False)  # new_request, approved, rejected, discussion
+    title = Column(String(255), nullable=False)
+    message = Column(Text, nullable=False)
+    
+    is_read = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    read_at = Column(DateTime(timezone=True), nullable=True)
+    
+    user = relationship("User")
+    approval_request = relationship("ApprovalRequest", back_populates="notifications")
