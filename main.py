@@ -170,4 +170,32 @@ async def test_auth(current_user: models.User = Depends(get_current_user)):
     """Test endpoint for authentication"""
     return {"auth": "working", "user": current_user.email}
 
+@app.post("/admin/seed-database")
+async def manual_seed_database(current_user: models.User = Depends(get_current_user)):
+    """Manual endpoint to seed the database - Admin only"""
+    from .routers.utils import check_roles
+    check_roles(current_user, ["admin"])
+    
+    try:
+        from seed import seed_database
+        seed_database()
+        return {"status": "success", "message": "Database seeded successfully"}
+    except Exception as e:
+        logger.error(f"Manual seeding failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Seeding failed: {str(e)}")
+
+@app.get("/debug/companies")
+async def debug_companies():
+    """Debug endpoint to check if companies exist"""
+    from database import SessionLocal
+    db = SessionLocal()
+    try:
+        companies = db.query(models.Company).all()
+        return {
+            "count": len(companies),
+            "companies": [{"id": c.id, "name": c.name} for c in companies]
+        }
+    finally:
+        db.close()
+
 
