@@ -52,8 +52,7 @@ def migrate_users_add_columns():
                 else:
                     logger.info(f"{column_name} column already exists")
             
-            # Commit the changes
-            conn.commit()
+            # Changes are auto-committed in this context
             
             logger.info("Migration completed successfully!")
             
