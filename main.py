@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Response, Request
+from fastapi import FastAPI, Response, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.openapi.docs import get_swagger_ui_html
@@ -6,6 +6,8 @@ from routers import (
     auth, tasks, groups, calendar, companies, events, cars, rentals, reports,
     notifications, contacts, daily_calls, projects, sales, payments, car_finance, documents, task_management, chat, approvals, websocket
 )
+from routers.auth import get_current_user
+import models
 import os, re
 import logging
 import time
@@ -81,10 +83,9 @@ allow_origins.extend(EXTRA_ORIGINS)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allow_origins,                 # explicit list (works with credentials if you need later)
-    allow_origin_regex=r"^https://.*onrender\.com$",  # also allow Render preview/static site URLs
-    allow_credentials=True,                      # Enable credentials for auth headers
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_origins=["*"],                         # Allow all origins temporarily for debugging
+    allow_credentials=False,                     # Disable credentials when allowing all origins
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"],
     allow_headers=["*"],                         # includes Authorization, Content-Type, etc.
 )
 
@@ -96,16 +97,8 @@ async def log_requests(request: Request, call_next):
     # Log request details
     logger.info(f"Request: {request.method} {request.url}")
     logger.info(f"Origin: {request.headers.get('origin', 'No Origin')}")
-    logger.info(f"User-Agent: {request.headers.get('user-agent', 'No User-Agent')}")
     
     response = await call_next(request)
-    
-    # Add additional CORS headers to ensure compatibility
-    if request.headers.get('origin'):
-        response.headers["Access-Control-Allow-Origin"] = request.headers.get('origin')
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
-        response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Accept, Origin, User-Agent, DNT, Cache-Control, X-Mx-ReqToken, Keep-Alive, X-Requested-With, If-Modified-Since"
     
     # Log response details
     process_time = time.time() - start_time
@@ -171,4 +164,10 @@ async def health_check():
 async def cors_test():
     """Test endpoint for CORS debugging"""
     return {"cors": "working", "message": "If you can see this, CORS is working!"}
+
+@app.get("/test-auth")
+async def test_auth(current_user: models.User = Depends(get_current_user)):
+    """Test endpoint for authentication"""
+    return {"auth": "working", "user": current_user.email}
+
 
