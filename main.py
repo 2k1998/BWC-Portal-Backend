@@ -7,11 +7,55 @@ from routers import (
     notifications, contacts, daily_calls, projects, sales, payments, car_finance, documents, task_management, chat, approvals, websocket
 )
 import os, re
+import logging
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Ensure uploads directory exists
 os.makedirs("uploads", exist_ok=True)
 
 app = FastAPI(docs_url=None, redoc_url=None, title="BWC Portal API")
+
+# Database initialization and migration
+@app.on_event("startup")
+async def startup_event():
+    """Run database migrations and setup on startup"""
+    try:
+        logger.info("Starting database initialization...")
+        
+        # Import and run the migration
+        from add_user_columns_migration import migrate_users_add_columns
+        migrate_users_add_columns()
+        
+        # Import and run the table creation
+        from database import Base, engine
+        from models import (
+            User, Task, Group, Company, PasswordResetToken, Event, Car, Rental, 
+            Notification, Contact, DailyCall, TaskHistory, Project,
+            Sale, EmployeeCommissionRule, MonthlyCommissionSummary, Payment,
+            CarIncome, CarExpense, TaskAssignment, TaskConversation, TaskMessage, 
+            TaskNotification, ChatConversation, ChatMessage, ApprovalRequest, 
+            ApprovalNotification, Document
+        )
+        
+        # Create all tables
+        Base.metadata.create_all(bind=engine)
+        logger.info("Database initialization completed successfully")
+        
+        # Run seed data if needed
+        try:
+            from seed import seed_database
+            seed_database()
+            logger.info("Database seeding completed")
+        except Exception as seed_error:
+            logger.warning(f"Database seeding failed (this may be normal if data already exists): {seed_error}")
+            
+    except Exception as e:
+        logger.error(f"Database initialization failed: {e}")
+        # Don't raise the exception to prevent the app from crashing
+        # The error will be logged and the app will continue
 
 # -----------------------------
 # CORS (Render-friendly)
