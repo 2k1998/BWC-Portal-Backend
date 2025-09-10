@@ -138,19 +138,49 @@ async def log_requests_and_cors(request: Request, call_next):
     return response
 
 # -----------------------------
-# CORS preflight handler
+# CORS preflight handler (moved after routers to avoid conflicts)
 # -----------------------------
-@app.options("/{rest_of_path:path}")
-def cors_preflight(rest_of_path: str):
-    return Response(
-        status_code=200,
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD",
-            "Access-Control-Allow-Headers": "*",
-            "Access-Control-Max-Age": "86400",
-        }
-    )
+
+# -----------------------------
+# Static files (serve uploaded files)
+# -----------------------------
+app.mount("/static", StaticFiles(directory="uploads"), name="static")
+
+# -----------------------------
+# Swagger UI (since docs_url=None)
+# -----------------------------
+@app.get("/docs", include_in_schema=False)
+async def custom_swagger_ui_html():
+    return get_swagger_ui_html(openapi_url="/openapi.json", title="BWC Portal API Docs")
+
+# -----------------------------
+# Routers
+# -----------------------------
+app.include_router(auth.router)
+app.include_router(tasks.router)
+app.include_router(groups.router)
+app.include_router(calendar.router)
+app.include_router(companies.router)
+app.include_router(events.router)
+app.include_router(cars.router)
+app.include_router(rentals.router)
+app.include_router(reports.router)
+app.include_router(notifications.router)
+app.include_router(contacts.router)
+app.include_router(daily_calls.router)
+app.include_router(projects.router)
+app.include_router(sales.router)
+app.include_router(payments.router)
+app.include_router(car_finance.router)
+app.include_router(documents.router)
+app.include_router(task_management.router)
+app.include_router(chat.router)
+app.include_router(approvals.router)
+app.include_router(websocket.router)
+
+# -----------------------------
+# CORS preflight handlers (after routers to avoid conflicts)
+# -----------------------------
 
 # Specific CORS handler for tasks endpoint
 @app.options("/tasks/")
@@ -200,44 +230,6 @@ def projects_cors_preflight_with_slash():
             "Access-Control-Max-Age": "86400",
         }
     )
-
-# -----------------------------
-# Static files (serve uploaded files)
-# -----------------------------
-app.mount("/static", StaticFiles(directory="uploads"), name="static")
-
-# -----------------------------
-# Swagger UI (since docs_url=None)
-# -----------------------------
-@app.get("/docs", include_in_schema=False)
-async def custom_swagger_ui_html():
-    return get_swagger_ui_html(openapi_url="/openapi.json", title="BWC Portal API Docs")
-
-# -----------------------------
-# Routers
-# -----------------------------
-app.include_router(auth.router)
-app.include_router(tasks.router)
-app.include_router(groups.router)
-app.include_router(calendar.router)
-app.include_router(companies.router)
-app.include_router(events.router)
-app.include_router(cars.router)
-app.include_router(rentals.router)
-app.include_router(reports.router)
-app.include_router(notifications.router)
-app.include_router(contacts.router)
-app.include_router(daily_calls.router)
-app.include_router(projects.router)
-app.include_router(sales.router)
-app.include_router(payments.router)
-app.include_router(car_finance.router)
-app.include_router(documents.router)
-app.include_router(task_management.router)
-app.include_router(chat.router)
-app.include_router(approvals.router)
-app.include_router(websocket.router)
-
 
 @app.get("/")
 async def read_root():
