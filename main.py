@@ -84,8 +84,8 @@ allow_origins.extend(EXTRA_ORIGINS)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allow_origins,                 # Use the configured origins list
-    allow_credentials=True,                      # Enable credentials for authenticated requests
+    allow_origins=["*"],                         # Allow all origins for now to fix the issue
+    allow_credentials=False,                     # Disable credentials when allowing all origins
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"],
     allow_headers=["*"],                         # includes Authorization, Content-Type, etc.
 )
@@ -101,6 +101,11 @@ async def log_requests(request: Request, call_next):
     
     response = await call_next(request)
     
+    # Add CORS headers to all responses
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    
     # Log response details
     process_time = time.time() - start_time
     logger.info(f"Response: {response.status_code} in {process_time:.4f}s")
@@ -112,7 +117,15 @@ async def log_requests(request: Request, call_next):
 # -----------------------------
 @app.options("/{rest_of_path:path}")
 def cors_preflight(rest_of_path: str):
-    return Response(status_code=204)
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Max-Age": "86400",
+        }
+    )
 
 # -----------------------------
 # Static files (serve uploaded files)
@@ -165,6 +178,11 @@ async def health_check():
 async def cors_test():
     """Test endpoint for CORS debugging"""
     return {"cors": "working", "message": "If you can see this, CORS is working!"}
+
+@app.post("/cors-test")
+async def cors_test_post():
+    """Test POST endpoint for CORS debugging"""
+    return {"cors": "working", "method": "POST", "message": "POST requests are working!"}
 
 @app.get("/test-auth")
 async def test_auth(current_user: models.User = Depends(get_current_user)):
