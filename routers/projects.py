@@ -16,6 +16,15 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
+@router.post("", response_model=schemas.ProjectResponse, status_code=status.HTTP_201_CREATED)
+async def create_project_no_slash(
+    project: schemas.ProjectCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Create a new project (no trailing slash)"""
+    return await create_project(project, db, current_user)
+
 @router.post("/", response_model=schemas.ProjectResponse, status_code=status.HTTP_201_CREATED)
 async def create_project(
     project: schemas.ProjectCreate,
@@ -69,6 +78,79 @@ async def create_project(
     ).filter(models.Project.id == db_project.id).first()
     
     return db_project
+
+@router.get("", response_model=List[schemas.ProjectListItem])
+async def get_projects_no_slash(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    status_filter: Optional[models.ProjectStatus] = None,
+    project_type_filter: Optional[models.ProjectType] = None,
+    company_id: Optional[int] = None,
+    search: Optional[str] = None,
+    sort_by: str = Query("created_at", regex="^(name|status|created_at|expected_completion_date|progress_percentage)$"),
+    sort_order: str = Query("desc", regex="^(asc|desc)$"),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Get all projects with filtering and sorting (no trailing slash)"""
+    # Duplicate the implementation to avoid circular reference
+    query = db.query(models.Project).options(
+        joinedload(models.Project.company),
+        joinedload(models.Project.project_manager)
+    )
+    
+    # Apply filters
+    if status_filter:
+        query = query.filter(models.Project.status == status_filter)
+    
+    if project_type_filter:
+        query = query.filter(models.Project.project_type == project_type_filter)
+    
+    if company_id:
+        query = query.filter(models.Project.company_id == company_id)
+    
+    if search:
+        search_term = f"%{search}%"
+        query = query.filter(
+            or_(
+                models.Project.name.ilike(search_term),
+                models.Project.description.ilike(search_term),
+                models.Project.store_location.ilike(search_term)
+            )
+        )
+    
+    # Apply sorting
+    order_func = desc if sort_order == "desc" else asc
+    if sort_by == "name":
+        query = query.order_by(order_func(models.Project.name))
+    elif sort_by == "status":
+        query = query.order_by(order_func(models.Project.status))
+    elif sort_by == "expected_completion_date":
+        query = query.order_by(order_func(models.Project.expected_completion_date))
+    elif sort_by == "progress_percentage":
+        query = query.order_by(order_func(models.Project.progress_percentage))
+    else:  # created_at
+        query = query.order_by(order_func(models.Project.created_at))
+    
+    projects = query.offset(skip).limit(limit).all()
+    
+    # Transform to list items with computed fields
+    project_list = []
+    for project in projects:
+        project_list.append({
+            "id": project.id,
+            "name": project.name,
+            "project_type": project.project_type,
+            "status": project.status,
+            "store_location": project.store_location,
+            "company_name": project.company.name if project.company else "Unknown",
+            "project_manager_name": project.project_manager.full_name if project.project_manager else None,
+            "progress_percentage": project.progress_percentage,
+            "expected_completion_date": project.expected_completion_date,
+            "created_at": project.created_at
+        })
+    
+    return project_list
 
 @router.get("/", response_model=List[schemas.ProjectListItem])
 async def get_projects(
