@@ -43,9 +43,15 @@ async def startup_event():
     try:
         logger.info("Starting database initialization...")
         
-        # Import and run the migration
+        # Import and run the migrations
         from add_user_columns_migration import migrate_users_add_columns
+        from add_created_by_migration import migrate_tasks_add_created_by
+        
+        logger.info("Running user columns migration...")
         migrate_users_add_columns()
+        
+        logger.info("Running created_by migration...")
+        migrate_tasks_add_created_by()
         
         # Import and run the table creation
         from database import Base, engine
