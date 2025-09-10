@@ -101,11 +101,6 @@ async def log_requests(request: Request, call_next):
     
     response = await call_next(request)
     
-    # Add CORS headers to all responses
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD"
-    response.headers["Access-Control-Allow-Headers"] = "*"
-    
     # Log response details
     process_time = time.time() - start_time
     logger.info(f"Response: {response.status_code} in {process_time:.4f}s")
@@ -117,6 +112,31 @@ async def log_requests(request: Request, call_next):
 # -----------------------------
 @app.options("/{rest_of_path:path}")
 def cors_preflight(rest_of_path: str):
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Max-Age": "86400",
+        }
+    )
+
+# Specific CORS handler for tasks endpoint
+@app.options("/tasks/")
+def tasks_cors_preflight():
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Max-Age": "86400",
+        }
+    )
+
+@app.options("/projects")
+def projects_cors_preflight():
     return Response(
         status_code=200,
         headers={
@@ -183,6 +203,16 @@ async def cors_test():
 async def cors_test_post():
     """Test POST endpoint for CORS debugging"""
     return {"cors": "working", "method": "POST", "message": "POST requests are working!"}
+
+@app.get("/tasks-test")
+async def tasks_test():
+    """Test tasks endpoint for CORS debugging"""
+    return {"tasks": "working", "message": "Tasks endpoint is accessible!"}
+
+@app.post("/tasks-test")
+async def tasks_test_post():
+    """Test tasks POST endpoint for CORS debugging"""
+    return {"tasks": "working", "method": "POST", "message": "Tasks POST is working!"}
 
 @app.get("/test-auth")
 async def test_auth(current_user: models.User = Depends(get_current_user)):
