@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Response, Request, Depends
+from fastapi import FastAPI, Response, Request, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.openapi.docs import get_swagger_ui_html
@@ -74,6 +74,7 @@ allow_origins = [
     "http://localhost:5173",
     "http://127.0.0.1:8000",
     "https://bwc-portal-frontend.onrender.com",  # Add explicit frontend domain
+    "https://bwc-portal-frontend-w1qr.onrender.com",  # Add your actual frontend domain
 ]
 
 if FRONTEND_URL:
@@ -83,8 +84,8 @@ allow_origins.extend(EXTRA_ORIGINS)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],                         # Allow all origins temporarily for debugging
-    allow_credentials=False,                     # Disable credentials when allowing all origins
+    allow_origins=allow_origins,                 # Use the configured origins list
+    allow_credentials=True,                      # Enable credentials for authenticated requests
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"],
     allow_headers=["*"],                         # includes Authorization, Content-Type, etc.
 )
