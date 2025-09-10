@@ -126,7 +126,6 @@ class TaskBase(BaseModel):
     important: bool = False
     company_id: Optional[int] = None
     owner_id: Optional[int] = None
-    department: Optional[str] = None
 
 class TaskCreate(TaskBase):
     pass
@@ -141,7 +140,6 @@ class TaskUpdate(BaseModel):
     important: Optional[bool] = False
     status: Optional[TaskStatus] = None
     company_id: Optional[int] = None
-    department: Optional[str] = None
     comment: Optional[str] = None
 
 class TaskStatusEnum(str, Enum):

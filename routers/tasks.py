@@ -8,6 +8,9 @@ from .auth import get_current_user
 from .utils import check_roles
 from .dependencies import get_task_for_update
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -32,7 +35,16 @@ def create_task(task: TaskCreate, db: Session = Depends(get_db), current_user: U
     task_data = task.dict(exclude={"owner_id"})
     
     # Create task with both owner and creator information
-    new_task = Task(**task_data, owner_id=task_owner_id, created_by_id=current_user.id)
+    # Handle case where created_by_id column might not exist yet
+    try:
+        new_task = Task(**task_data, owner_id=task_owner_id, created_by_id=current_user.id)
+    except TypeError as e:
+        if "created_by_id" in str(e):
+            # Fallback: create task without created_by_id if column doesn't exist
+            logger.warning("created_by_id column not found, creating task without it")
+            new_task = Task(**task_data, owner_id=task_owner_id)
+        else:
+            raise
     db.add(new_task)
     db.commit()
     db.refresh(new_task)
