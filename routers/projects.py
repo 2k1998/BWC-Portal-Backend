@@ -4,11 +4,15 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc, asc, or_, and_
 from typing import List, Optional
 from datetime import datetime
+import logging
 
 from database import get_db
 import models, schemas
 from .auth import get_current_user
 from .utils import check_roles
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -39,10 +43,19 @@ async def create_project(
             )
     
     # Create new project
-    db_project = models.Project(
-        **project.model_dump(),
-        created_by_id=current_user.id
-    )
+    # Handle case where created_by_id column might not exist yet
+    try:
+        db_project = models.Project(
+            **project.model_dump(),
+            created_by_id=current_user.id
+        )
+    except TypeError as e:
+        if "created_by_id" in str(e):
+            # Fallback: create project without created_by_id if column doesn't exist
+            logger.warning("created_by_id column not found, creating project without it")
+            db_project = models.Project(**project.model_dump())
+        else:
+            raise
     
     db.add(db_project)
     db.commit()
