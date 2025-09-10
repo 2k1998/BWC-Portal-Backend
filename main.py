@@ -2,6 +2,7 @@ from fastapi import FastAPI, Response, Request, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.openapi.docs import get_swagger_ui_html
+from fastapi.responses import JSONResponse
 from routers import (
     auth, tasks, groups, calendar, companies, events, cars, rentals, reports,
     notifications, contacts, daily_calls, projects, sales, payments, car_finance, documents, task_management, chat, approvals, websocket
@@ -21,6 +22,19 @@ logger = logging.getLogger(__name__)
 os.makedirs("uploads", exist_ok=True)
 
 app = FastAPI(docs_url=None, redoc_url=None, title="BWC Portal API")
+
+# Global exception handler to ensure CORS headers are always present
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    response = JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"}
+    )
+    # Add CORS headers even to error responses
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    return response
 
 # Database initialization and migration
 @app.on_event("startup")
@@ -90,9 +104,9 @@ app.add_middleware(
     allow_headers=["*"],                         # includes Authorization, Content-Type, etc.
 )
 
-# Add request logging middleware
+# Add request logging and CORS middleware
 @app.middleware("http")
-async def log_requests(request: Request, call_next):
+async def log_requests_and_cors(request: Request, call_next):
     start_time = time.time()
     
     # Log request details
@@ -100,6 +114,12 @@ async def log_requests(request: Request, call_next):
     logger.info(f"Origin: {request.headers.get('origin', 'No Origin')}")
     
     response = await call_next(request)
+    
+    # Add CORS headers to all responses
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    response.headers["Access-Control-Max-Age"] = "86400"
     
     # Log response details
     process_time = time.time() - start_time
@@ -125,6 +145,18 @@ def cors_preflight(rest_of_path: str):
 # Specific CORS handler for tasks endpoint
 @app.options("/tasks/")
 def tasks_cors_preflight():
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Max-Age": "86400",
+        }
+    )
+
+@app.options("/tasks")
+def tasks_cors_preflight_no_slash():
     return Response(
         status_code=200,
         headers={
@@ -213,6 +245,11 @@ async def tasks_test():
 async def tasks_test_post():
     """Test tasks POST endpoint for CORS debugging"""
     return {"tasks": "working", "method": "POST", "message": "Tasks POST is working!"}
+
+@app.get("/tasks-simple")
+async def tasks_simple():
+    """Simple tasks endpoint for CORS testing"""
+    return {"message": "Simple tasks endpoint working!"}
 
 @app.get("/test-auth")
 async def test_auth(current_user: models.User = Depends(get_current_user)):

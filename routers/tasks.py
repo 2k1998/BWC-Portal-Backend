@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy.orm import joinedload
 from database import get_db
@@ -11,15 +10,6 @@ from .dependencies import get_task_for_update
 from datetime import datetime
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
-
-# Add CORS middleware to this router
-@router.middleware("http")
-async def add_cors_headers(request, call_next):
-    response = await call_next(request)
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD"
-    response.headers["Access-Control-Allow-Headers"] = "*"
-    return response
 
 @router.get("/test")
 def test_tasks_cors():
