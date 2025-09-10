@@ -12,6 +12,15 @@ from .utils import check_roles
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
+# Add CORS middleware to this router
+@router.middleware("http")
+async def add_cors_headers(request, call_next):
+    response = await call_next(request)
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    return response
+
 @router.post("/", response_model=schemas.ProjectResponse, status_code=status.HTTP_201_CREATED)
 async def create_project(
     project: schemas.ProjectCreate,
