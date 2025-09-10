@@ -46,12 +46,16 @@ async def startup_event():
         # Import and run the migrations
         from add_user_columns_migration import migrate_users_add_columns
         from add_created_by_migration import migrate_tasks_add_created_by
+        from add_projects_created_by_migration import migrate_projects_add_created_by
         
         logger.info("Running user columns migration...")
         migrate_users_add_columns()
         
         logger.info("Running created_by migration...")
         migrate_tasks_add_created_by()
+        
+        logger.info("Running projects created_by migration...")
+        migrate_projects_add_created_by()
         
         # Import and run the table creation
         from database import Base, engine
@@ -185,6 +189,18 @@ def projects_cors_preflight():
         }
     )
 
+@app.options("/projects/")
+def projects_cors_preflight_with_slash():
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Max-Age": "86400",
+        }
+    )
+
 # -----------------------------
 # Static files (serve uploaded files)
 # -----------------------------
@@ -256,6 +272,16 @@ async def tasks_test_post():
 async def tasks_simple():
     """Simple tasks endpoint for CORS testing"""
     return {"message": "Simple tasks endpoint working!"}
+
+@app.get("/projects-test")
+async def projects_test():
+    """Test projects endpoint for CORS debugging"""
+    return {"projects": "working", "message": "Projects endpoint is accessible!"}
+
+@app.post("/projects-test")
+async def projects_test_post():
+    """Test projects POST endpoint for CORS debugging"""
+    return {"projects": "working", "method": "POST", "message": "Projects POST is working!"}
 
 @app.get("/test-auth")
 async def test_auth(current_user: models.User = Depends(get_current_user)):
