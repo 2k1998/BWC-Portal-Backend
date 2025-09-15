@@ -434,6 +434,21 @@ class DailyCallCreate(BaseModel):
 class DailyCallUpdate(BaseModel):
     call_frequency_per_day: Optional[int] = None
     next_call_at: Optional[datetime] = None
+    
+    @validator('next_call_at', pre=True)
+    def parse_datetime(cls, v):
+        if v is None:
+            return v
+        if isinstance(v, str):
+            try:
+                return datetime.fromisoformat(v.replace('Z', '+00:00'))
+            except ValueError:
+                # Try parsing with different formats
+                try:
+                    return datetime.fromisoformat(v)
+                except ValueError:
+                    raise ValueError(f"Invalid datetime format: {v}")
+        return v
 
 class DailyCallOut(BaseModel):
     id: int
