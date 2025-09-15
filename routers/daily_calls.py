@@ -85,23 +85,27 @@ def update_daily_call(
     """
     Updates the frequency or next call time for a daily call entry.
     """
-    daily_call = db.query(models.DailyCall).filter(
-        models.DailyCall.id == daily_call_id,
-        models.DailyCall.user_id == current_user.id
-    ).first()
+    try:
+        daily_call = db.query(models.DailyCall).filter(
+            models.DailyCall.id == daily_call_id,
+            models.DailyCall.user_id == current_user.id
+        ).first()
 
-    if not daily_call:
-        raise HTTPException(status_code=404, detail="Daily call entry not found.")
+        if not daily_call:
+            raise HTTPException(status_code=404, detail="Daily call entry not found.")
 
-    # Fixed: Use model_dump() instead of dict() for Pydantic v2 compatibility
-    update_data = payload.model_dump(exclude_unset=True)
-    for key, value in update_data.items():
-        setattr(daily_call, key, value)
-    
-    db.commit()
-    db.refresh(daily_call)
-    db.refresh(daily_call, attribute_names=['contact'])
-    return daily_call
+        # Fixed: Use model_dump() instead of dict() for Pydantic v2 compatibility
+        update_data = payload.model_dump(exclude_unset=True)
+        for key, value in update_data.items():
+            setattr(daily_call, key, value)
+        
+        db.commit()
+        db.refresh(daily_call)
+        db.refresh(daily_call, attribute_names=['contact'])
+        return daily_call
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to update daily call: {str(e)}")
 
 @router.delete("/{daily_call_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_from_daily_list(
