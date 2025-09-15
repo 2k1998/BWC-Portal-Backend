@@ -157,13 +157,27 @@ async def upload_profile_picture(
         
         # Update user profile
         file_url = f"/static/{unique_filename}"
+        print(f"DEBUG: Updating profile picture URL to: {file_url}")
+        print(f"DEBUG: Current user ID: {current_user.id}")
+        print(f"DEBUG: Current profile_picture_url before update: {current_user.profile_picture_url}")
+        
         current_user.profile_picture_url = file_url
+        
+        # Commit the database transaction
         db.commit()
         db.refresh(current_user)
+        
+        print(f"DEBUG: Profile picture URL after update: {current_user.profile_picture_url}")
+        
+        # Verify the update was successful
+        if current_user.profile_picture_url != file_url:
+            raise Exception("Database update failed - profile_picture_url not updated")
         
         return current_user
         
     except Exception as e:
+        # Rollback database changes
+        db.rollback()
         # Clean up file if database operation fails
         if file_path.exists():
             file_path.unlink()
