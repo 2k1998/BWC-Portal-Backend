@@ -70,8 +70,10 @@ def add_contact_to_daily_list(
     db.commit()
     db.refresh(new_daily_call)
     
-    # Manually load the contact details to match the response model
-    db.refresh(new_daily_call, attribute_names=['contact'])
+    # Reload the daily call with the contact relationship
+    new_daily_call = db.query(models.DailyCall).options(
+        joinedload(models.DailyCall.contact)
+    ).filter(models.DailyCall.id == new_daily_call.id).first()
 
     return new_daily_call
 
@@ -101,7 +103,12 @@ def update_daily_call(
         
         db.commit()
         db.refresh(daily_call)
-        db.refresh(daily_call, attribute_names=['contact'])
+        
+        # Reload the daily call with the contact relationship
+        daily_call = db.query(models.DailyCall).options(
+            joinedload(models.DailyCall.contact)
+        ).filter(models.DailyCall.id == daily_call.id).first()
+        
         return daily_call
     except Exception as e:
         db.rollback()
