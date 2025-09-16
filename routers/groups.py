@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from database import get_db
 from models import Group, User, Task  # Ensure User and Task are imported
-from schemas import GroupCreate, GroupOut, UserResponse, GroupTaskCreate, TaskResponse, TaskCreate
+from schemas import GroupCreate, GroupOut, UserResponse, GroupTaskCreate, TaskResponse, TaskCreate, GroupHeadUpdate
 from .auth import get_current_user
 from .utils import check_roles, is_admin_or_owner, is_admin_or_group_member
 
@@ -11,9 +11,13 @@ router = APIRouter(prefix="/groups", tags=["groups"])
 @router.get("/", response_model=list[GroupOut])
 def list_groups(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if current_user.role == "admin":
-        return db.query(Group).all()
+        return db.query(Group).options(joinedload(Group.head), joinedload(Group.members)).all()
     else:
-        return current_user.groups
+        # Load the groups with head and members relationships
+        groups = db.query(Group).options(joinedload(Group.head), joinedload(Group.members)).filter(
+            Group.members.any(User.id == current_user.id)
+        ).all()
+        return groups
 
 @router.post("/{group_id}/add-user/{user_id}")
 def add_user_to_group(group_id: int, user_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -41,7 +45,13 @@ def create_group(group: GroupCreate, db: Session = Depends(get_db), current_user
     if existing:
         raise HTTPException(status_code=400, detail="Group already exists")
 
-    new_group = Group(name=group.name)
+    # Verify head exists if provided
+    if group.head_id:
+        head = db.query(User).filter(User.id == group.head_id).first()
+        if not head:
+            raise HTTPException(status_code=404, detail="Head user not found")
+
+    new_group = Group(name=group.name, head_id=group.head_id)
     db.add(new_group)
     db.commit()
     db.refresh(new_group)
@@ -65,7 +75,7 @@ def get_group_members(group_id: int, db: Session = Depends(get_db), current_user
 
 @router.get("/{group_id}", response_model=GroupOut)
 def get_group_by_id(group_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    group = db.query(Group).filter(Group.id == group_id).first()
+    group = db.query(Group).options(joinedload(Group.head), joinedload(Group.members)).filter(Group.id == group_id).first()
     if not group:
         raise HTTPException(status_code=404, detail="Group not found")
 
@@ -152,3 +162,43 @@ def remove_user_from_group(group_id: int, user_id: int, db: Session = Depends(ge
     group.members.remove(user_to_remove)
     db.commit()
     return {"message": f"User {user_to_remove.email} removed from group {group.name}"}
+
+@router.put("/{group_id}/head", response_model=GroupOut)
+def update_group_head(group_id: int, head_update: GroupHeadUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Assign or remove a team head (admin only)"""
+    check_roles(current_user, ["admin"])
+    
+    group = db.query(Group).filter(Group.id == group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    
+    # Verify head exists if provided
+    if head_update.head_id:
+        head = db.query(User).filter(User.id == head_update.head_id).first()
+        if not head:
+            raise HTTPException(status_code=404, detail="Head user not found")
+        
+        # Ensure the head is a member of the group
+        if head not in group.members:
+            raise HTTPException(status_code=400, detail="Head must be a member of the group")
+    
+    group.head_id = head_update.head_id
+    db.commit()
+    db.refresh(group)
+    
+    return group
+
+@router.get("/{group_id}/head", response_model=UserResponse)
+def get_group_head(group_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Get the team head of a group"""
+    group = db.query(Group).filter(Group.id == group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    
+    if not is_admin_or_group_member(current_user, group.members):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to view this group's head.")
+    
+    if not group.head:
+        raise HTTPException(status_code=404, detail="No head assigned to this group")
+    
+    return group.head

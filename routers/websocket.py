@@ -15,12 +15,15 @@ router = APIRouter()
 class ConnectionManager:
     def __init__(self):
         self.active_connections: Dict[int, List[WebSocket]] = {}
+        self.last_heartbeat: Dict[int, datetime] = {}
+        self.grace_seconds: int = 60
     
     async def connect(self, websocket: WebSocket, user_id: int, db: Session):
         await websocket.accept()
         if user_id not in self.active_connections:
             self.active_connections[user_id] = []
         self.active_connections[user_id].append(websocket)
+        self.last_heartbeat[user_id] = datetime.now(timezone.utc)
         
         # Mark user as online
         user = db.query(models.User).filter(models.User.id == user_id).first()
@@ -30,19 +33,16 @@ class ConnectionManager:
             db.commit()
         
         print(f"User {user_id} connected. Total connections: {len(self.active_connections.get(user_id, []))}")
+        # Broadcast presence update and snapshot to all users
+        await self.broadcast_to_all({"type": "presence_update", "user_id": user_id, "is_online": True, "last_seen": user.last_seen.isoformat()})
+        await self.send_presence_snapshot(websocket, db)
     
     def disconnect(self, websocket: WebSocket, user_id: int, db: Session):
         if user_id in self.active_connections:
             self.active_connections[user_id].remove(websocket)
             if not self.active_connections[user_id]:
                 del self.active_connections[user_id]
-                
-                # Mark user as offline if no more connections
-                user = db.query(models.User).filter(models.User.id == user_id).first()
-                if user:
-                    user.is_online = False
-                    user.last_seen = datetime.now(timezone.utc)
-                    db.commit()
+                # Do not mark offline immediately; rely on grace timeout
                     
         print(f"User {user_id} disconnected")
     
@@ -64,6 +64,18 @@ class ConnectionManager:
     async def broadcast_to_users(self, message: dict, user_ids: List[int]):
         for user_id in user_ids:
             await self.send_personal_message(message, user_id)
+
+    async def broadcast_to_all(self, message: dict):
+        for user_id in list(self.active_connections.keys()):
+            await self.send_personal_message(message, user_id)
+
+    async def send_presence_snapshot(self, websocket: WebSocket, db: Session):
+        online_users = db.query(models.User).filter(models.User.is_online == True).all()
+        snapshot = [{"user_id": u.id, "last_seen": (u.last_seen.isoformat() if u.last_seen else None)} for u in online_users]
+        try:
+            await websocket.send_text(json.dumps({"type": "presence_snapshot", "online": snapshot}))
+        except:
+            pass
 
 manager = ConnectionManager()
 
@@ -99,10 +111,35 @@ async def websocket_endpoint(websocket: WebSocket, token: str, db: Session = Dep
             
             # Handle different message types
             if message_data.get("type") == "ping":
+                # Update heartbeat and last_seen
+                manager.last_heartbeat[user.id] = datetime.now(timezone.utc)
+                db_user = db.query(models.User).filter(models.User.id == user.id).first()
+                if db_user:
+                    db_user.last_seen = datetime.now(timezone.utc)
+                    if not db_user.is_online:
+                        db_user.is_online = True
+                        await manager.broadcast_to_all({"type": "presence_update", "user_id": user.id, "is_online": True, "last_seen": db_user.last_seen.isoformat()})
+                    db.commit()
                 await websocket.send_text(json.dumps({"type": "pong"}))
             
     except WebSocketDisconnect:
         manager.disconnect(websocket, user.id, db)
+
+# Background task suggestion (to be scheduled by server runner):
+# periodically check last_heartbeat and mark offline if exceeded grace.
+async def sweep_offline_users(db: Session):
+    now = datetime.now(timezone.utc)
+    to_mark_offline = []
+    for user_id, last in list(manager.last_heartbeat.items()):
+        if (now - last).total_seconds() > manager.grace_seconds:
+            to_mark_offline.append(user_id)
+    for uid in to_mark_offline:
+        user = db.query(models.User).filter(models.User.id == uid).first()
+        if user and user.is_online:
+            user.is_online = False
+            user.last_seen = now
+            db.commit()
+            await manager.broadcast_to_all({"type": "presence_update", "user_id": uid, "is_online": False, "last_seen": user.last_seen.isoformat()})
 
 # Helper functions to send real-time updates
 
