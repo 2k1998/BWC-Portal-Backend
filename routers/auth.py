@@ -20,6 +20,10 @@ SECRET_KEY = os.getenv("SECRET_KEY", "your-super-secret-key-for-development")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 240))
 
+# Base URL for frontend (used for email links)
+# Set FRONTEND_BASE_URL in your environment, e.g. https://portal.example.com
+FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173")
+
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/token")
 
@@ -275,7 +279,9 @@ def request_password_reset(request: PasswordResetRequest, db: Session = Depends(
     )
     db.add(db_token)
     db.commit()
-    reset_link = f"http://localhost:5173/reset-password?token={token}"
+    # Build reset link using configurable frontend base URL
+    base_url = FRONTEND_BASE_URL.rstrip("/")
+    reset_link = f"{base_url}/reset-password?token={token}"
     send_email(
         to_email=user.email,
         subject="Password Reset Request",
