@@ -349,12 +349,18 @@ class UserTaskMetrics(BaseModel):
 # --- Group Schemas ---
 class GroupCreate(BaseModel):
     name: str
+    head_id: Optional[int] = None
 
 class GroupOut(BaseModel):
     id: int
     name: str
+    head_id: Optional[int] = None
+    head: Optional[UserResponse] = None
     members: List[UserResponse] = []
     model_config = ConfigDict(from_attributes=True)
+
+class GroupHeadUpdate(BaseModel):
+    head_id: Optional[int] = None
 
 # --- THIS CLASS IS NOW RESTORED ---
 class GroupTaskCreate(BaseModel):

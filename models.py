@@ -220,8 +220,10 @@ class Group(Base):
     __tablename__ = "groups"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, index=True, nullable=False)
+    head_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     members = relationship("User", secondary=group_members, back_populates="groups")
     tasks = relationship("Task", back_populates="group")
+    head = relationship("User", foreign_keys=[head_id])
 
 class PasswordResetToken(Base):
     __tablename__ = "password_reset_tokens"

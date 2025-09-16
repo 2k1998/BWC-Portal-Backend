@@ -37,9 +37,18 @@ def get_calendar_events(
     if current_user.role == "admin":
         tasks_to_include = tasks_query.all()
     else:
+        # Get personal tasks and tasks from all groups the user is in
         user_group_ids = [group.id for group in current_user.groups]
+        
+        # Get groups where user is the head
+        groups_headed = db.query(Group).filter(Group.head_id == current_user.id).all()
+        headed_group_ids = [group.id for group in groups_headed]
+        
+        # Combine all group IDs (member + head)
+        all_group_ids = list(set(user_group_ids + headed_group_ids))
+        
         tasks_to_include = db.query(Task).filter(
-            (Task.owner_id == current_user.id) | (Task.group_id.in_(user_group_ids))
+            (Task.owner_id == current_user.id) | (Task.group_id.in_(all_group_ids))
         ).all()
 
     for task in tasks_to_include:
