@@ -47,6 +47,7 @@ async def startup_event():
         from add_user_columns_migration import migrate_users_add_columns
         from add_created_by_migration import migrate_tasks_add_created_by
         from add_projects_created_by_migration import migrate_projects_add_created_by
+        from add_group_head_migration import run_migration as migrate_group_head
         
         logger.info("Running user columns migration...")
         migrate_users_add_columns()
@@ -56,6 +57,12 @@ async def startup_event():
         
         logger.info("Running projects created_by migration...")
         migrate_projects_add_created_by()
+        
+        logger.info("Running groups head_id migration...")
+        try:
+            migrate_group_head()
+        except Exception as e:
+            logger.warning(f"Group head_id migration skipped/failed: {e}")
         
         # Import and run the table creation
         from database import Base, engine
