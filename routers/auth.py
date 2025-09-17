@@ -14,6 +14,8 @@ import uuid
 import shutil
 from pathlib import Path
 from utils.email_sender import send_email
+import cloudinary
+import cloudinary.uploader
 
 # Load secret key and token expiration from environment variables (or use defaults)
 SECRET_KEY = os.getenv("SECRET_KEY", "your-super-secret-key-for-development")
@@ -144,47 +146,50 @@ async def upload_profile_picture(
     
     # Reset file pointer
     await file.seek(0)
-    
-    # Create upload directory
-    upload_dir = Path("uploads")
-    upload_dir.mkdir(exist_ok=True)
-    
-    # Generate unique filename
-    file_extension = Path(file.filename).suffix.lower()
-    unique_filename = f"{uuid.uuid4()}{file_extension}"
-    file_path = upload_dir / unique_filename
-    
+
+    # Ensure Cloudinary is configured
+    cloud_name = os.getenv("CLOUDINARY_CLOUD_NAME")
+    api_key = os.getenv("CLOUDINARY_API_KEY")
+    api_secret = os.getenv("CLOUDINARY_API_SECRET")
+    if not (cloud_name and api_key and api_secret):
+        raise HTTPException(status_code=500, detail="Cloudinary is not configured. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET.")
+
+    cloudinary.config(
+        cloud_name=cloud_name,
+        api_key=api_key,
+        api_secret=api_secret
+    )
+
     try:
-        # Save file
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-        
-        # Update user profile
-        file_url = f"/static/{unique_filename}"
-        print(f"DEBUG: Updating profile picture URL to: {file_url}")
-        print(f"DEBUG: Current user ID: {current_user.id}")
-        print(f"DEBUG: Current profile_picture_url before update: {current_user.profile_picture_url}")
-        
-        current_user.profile_picture_url = file_url
-        
+        # Upload directly to Cloudinary
+        upload_result = cloudinary.uploader.upload(
+            file.file,
+            folder="bwc/avatars",
+            resource_type="image",
+            public_id=f"user_{current_user.id}_{uuid.uuid4()}",
+            overwrite=True
+        )
+
+        secure_url = upload_result.get("secure_url")
+        if not secure_url:
+            raise Exception("Cloudinary upload failed: no secure_url returned")
+
+        # Update user profile with absolute URL
+        current_user.profile_picture_url = secure_url
+
         # Commit the database transaction
         db.commit()
         db.refresh(current_user)
-        
-        print(f"DEBUG: Profile picture URL after update: {current_user.profile_picture_url}")
-        
+
         # Verify the update was successful
-        if current_user.profile_picture_url != file_url:
+        if current_user.profile_picture_url != secure_url:
             raise Exception("Database update failed - profile_picture_url not updated")
-        
+
         return current_user
         
     except Exception as e:
         # Rollback database changes
         db.rollback()
-        # Clean up file if database operation fails
-        if file_path.exists():
-            file_path.unlink()
         raise HTTPException(
             status_code=500,
             detail=f"Failed to upload profile picture: {str(e)}"
