@@ -14,8 +14,14 @@ import uuid
 import shutil
 from pathlib import Path
 from utils.email_sender import send_email
-import cloudinary
-import cloudinary.uploader
+
+# Optional cloudinary import for profile picture uploads
+try:
+    import cloudinary
+    import cloudinary.uploader
+    CLOUDINARY_AVAILABLE = True
+except ImportError:
+    CLOUDINARY_AVAILABLE = False
 
 # Load secret key and token expiration from environment variables (or use defaults)
 SECRET_KEY = os.getenv("SECRET_KEY", "your-super-secret-key-for-development")
@@ -147,7 +153,10 @@ async def upload_profile_picture(
     # Reset file pointer
     await file.seek(0)
 
-    # Ensure Cloudinary is configured
+    # Check if Cloudinary is available and configured
+    if not CLOUDINARY_AVAILABLE:
+        raise HTTPException(status_code=500, detail="Cloudinary is not available. Please install cloudinary package.")
+    
     cloud_name = os.getenv("CLOUDINARY_CLOUD_NAME")
     api_key = os.getenv("CLOUDINARY_API_KEY")
     api_secret = os.getenv("CLOUDINARY_API_SECRET")
@@ -312,25 +321,4 @@ def reset_password(request: PasswordReset, db: Session = Depends(get_db)):
     db.refresh(user)
     return {"message": "Password has been successfully reset."}
 
-from pydantic import BaseModel, EmailStr, computed_field, ConfigDict
-from datetime import date
-
-class UserResponse(BaseModel):
-    id: int
-    email: EmailStr
-    first_name: Optional[str] = None
-    surname: Optional[str] = None
-    birthday: Optional[date] = None
-    role: str = "user"
-    is_active: bool = True
-    
-    # --- NEW: Add profile picture URL to the response model ---
-    profile_picture_url: Optional[str] = None
-
-    @computed_field
-    def full_name(self) -> str:
-        if self.first_name and self.surname:
-            return f"{self.first_name} {self.surname}"
-        return self.first_name or self.surname or "No name set"
-
-    model_config = ConfigDict(from_attributes=True)
+# UserResponse is already imported from schemas.py above

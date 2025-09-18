@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from database import get_db
-from models import User, Task, Event # Import Event model
+from models import User, Task, Event, Group # Import Event and Group models
 from schemas import CalendarEvent
 from .auth import get_current_user
 from datetime import date, datetime
