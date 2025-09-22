@@ -116,6 +116,25 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
 
 @router.get("/users/me", response_model=UserResponse)
 def read_users_me(current_user: User = Depends(get_current_user)):
+    # Defensive normalization so the endpoint never 500s due to permissions shape
+    try:
+        perms = getattr(current_user, "permissions", None)
+        if perms is None:
+            current_user.permissions = {}
+        elif isinstance(perms, list):
+            # Older schema stored a list; normalize to object for the frontend
+            current_user.permissions = {}
+        elif isinstance(perms, str):
+            # Some DBs may have stored JSON as text; best effort parse
+            import json
+            try:
+                parsed = json.loads(perms)
+                current_user.permissions = parsed if isinstance(parsed, dict) else {}
+            except Exception:
+                current_user.permissions = {}
+    except Exception:
+        # On any unexpected error, fall back to empty permissions
+        current_user.permissions = {}
     return current_user
 
 @router.put("/users/me", response_model=UserResponse)
