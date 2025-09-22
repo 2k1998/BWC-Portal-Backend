@@ -22,6 +22,7 @@ class UserResponse(UserBase):
     profile_picture_url: Optional[str] = None
     last_seen: Optional[datetime] = None
     is_online: bool = False
+    permissions: Optional[dict] = None
 
     @computed_field
     @property
@@ -42,6 +43,9 @@ class UserRoleUpdate(BaseModel):
 
 class UserStatusUpdate(BaseModel):
     is_active: bool
+
+class UserPermissionsUpdate(BaseModel):
+    permissions: dict
 
 # --- Basic Info Schemas (Used to break circular dependencies) ---
 class UserBasicInfo(BaseModel):
