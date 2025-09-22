@@ -122,7 +122,7 @@ class User(Base):
     is_online = Column(Boolean, default=False)
 
     # --- Add this line for permissions ---
-    permissions = Column(JSON, default=list)  # Store array of permission strings
+    permissions = Column(JSON, default=dict)  # Store dictionary of permission strings
 
     @property
     def full_name(self) -> str:

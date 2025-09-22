@@ -84,26 +84,39 @@ def get_user_from_token(token: str, db: Session):
     try:
         from .auth import SECRET_KEY, ALGORITHM
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email: str = payload.get("sub")
-        if email is None:
-            return None
         
-        user = db.query(models.User).filter(models.User.email == email).first()
-        return user
-    except:
+        # Try to get user_id first (newer token format)
+        user_id = payload.get("id")
+        if user_id:
+            user = db.query(models.User).filter(models.User.id == user_id).first()
+            if user:
+                return user
+        
+        # Fallback to email (older token format)
+        email: str = payload.get("sub")
+        if email:
+            user = db.query(models.User).filter(models.User.email == email).first()
+            return user
+        
+        return None
+    except Exception as e:
+        print(f"WebSocket token validation error: {e}")
         return None
 
 @router.websocket("/ws/{token}")
 async def websocket_endpoint(websocket: WebSocket, token: str, db: Session = Depends(get_db)):
-    # Authenticate user from token
-    user = get_user_from_token(token, db)
-    if not user:
-        await websocket.close(code=1008)
-        return
-    
-    await manager.connect(websocket, user.id, db)
-    
+    user = None
     try:
+        # Authenticate user from token
+        user = get_user_from_token(token, db)
+        if not user:
+            print(f"WebSocket authentication failed for token: {token[:20]}...")
+            await websocket.close(code=1008, reason="Authentication failed")
+            return
+        
+        print(f"WebSocket connected for user {user.id} ({user.email})")
+        await manager.connect(websocket, user.id, db)
+        
         while True:
             # Keep connection alive and listen for client messages
             data = await websocket.receive_text()
@@ -123,7 +136,17 @@ async def websocket_endpoint(websocket: WebSocket, token: str, db: Session = Dep
                 await websocket.send_text(json.dumps({"type": "pong"}))
             
     except WebSocketDisconnect:
-        manager.disconnect(websocket, user.id, db)
+        if user:
+            print(f"WebSocket disconnected for user {user.id}")
+            manager.disconnect(websocket, user.id, db)
+    except Exception as e:
+        print(f"WebSocket error for user {user.id if user else 'unknown'}: {e}")
+        if user:
+            manager.disconnect(websocket, user.id, db)
+        try:
+            await websocket.close(code=1011, reason="Internal error")
+        except:
+            pass
 
 # Background task suggestion (to be scheduled by server runner):
 # periodically check last_heartbeat and mark offline if exceeded grace.

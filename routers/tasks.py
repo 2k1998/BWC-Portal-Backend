@@ -64,15 +64,14 @@ def create_task(task: TaskCreate, db: Session = Depends(get_db), current_user: U
 @router.get("/", response_model=list[TaskResponse])
 def list_my_tasks(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
-        # Defensive fix for permissions
-        if hasattr(current_user, 'permissions'):
-            if current_user.permissions is None:
-                current_user.permissions = {}
-            elif isinstance(current_user.permissions, list):
-                current_user.permissions = {}
+        # Ensure permissions is a dict (defensive programming)
+        if not hasattr(current_user, 'permissions') or current_user.permissions is None:
+            current_user.permissions = {}
+        elif isinstance(current_user.permissions, list):
+            current_user.permissions = {}
         
         if current_user.role == "admin":
-            return db.query(Task).all()
+            tasks = db.query(Task).all()
         else:
             # Get personal tasks and tasks from all groups the user is in
             user_group_ids = [group.id for group in current_user.groups]
@@ -84,12 +83,15 @@ def list_my_tasks(db: Session = Depends(get_db), current_user: User = Depends(ge
             # Combine all group IDs (member + head)
             all_group_ids = list(set(user_group_ids + headed_group_ids))
             
-            return db.query(Task).filter(
+            tasks = db.query(Task).filter(
                 (Task.owner_id == current_user.id) |
                 (Task.group_id.in_(all_group_ids))
             ).all()
+        
+        logger.info(f"User {current_user.id} ({current_user.email}) retrieved {len(tasks)} tasks")
+        return tasks
     except Exception as e:
-        logger.error(f"Error in list_my_tasks: {e}")
+        logger.error(f"Error in list_my_tasks for user {current_user.id}: {str(e)}", exc_info=True)
         # Return empty list on error to prevent 500
         return []
 
