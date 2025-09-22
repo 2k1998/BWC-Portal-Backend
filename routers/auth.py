@@ -116,25 +116,20 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
 
 @router.get("/users/me", response_model=UserResponse)
 def read_users_me(current_user: User = Depends(get_current_user)):
-    # Defensive normalization so the endpoint never 500s due to permissions shape
-    try:
-        perms = getattr(current_user, "permissions", None)
-        if perms is None:
-            current_user.permissions = {}
-        elif isinstance(perms, list):
-            # Older schema stored a list; normalize to object for the frontend
-            current_user.permissions = {}
-        elif isinstance(perms, str):
-            # Some DBs may have stored JSON as text; best effort parse
-            import json
-            try:
-                parsed = json.loads(perms)
-                current_user.permissions = parsed if isinstance(parsed, dict) else {}
-            except Exception:
-                current_user.permissions = {}
-    except Exception:
-        # On any unexpected error, fall back to empty permissions
+    # Ensure permissions is always a dict
+    if not hasattr(current_user, 'permissions') or current_user.permissions is None:
         current_user.permissions = {}
+    elif isinstance(current_user.permissions, list):
+        current_user.permissions = {}
+    elif isinstance(current_user.permissions, str):
+        # Some DBs may have stored JSON as text; best effort parse
+        import json
+        try:
+            parsed = json.loads(current_user.permissions)
+            current_user.permissions = parsed if isinstance(parsed, dict) else {}
+        except Exception:
+            current_user.permissions = {}
+    
     return current_user
 
 @router.put("/users/me", response_model=UserResponse)
@@ -230,12 +225,11 @@ def list_all_users(
     search: Optional[str] = Query(None, description="Search users by email or full name")
 ):
     try:
-        # Defensive fix for permissions
-        if hasattr(current_user, 'permissions'):
-            if current_user.permissions is None:
-                current_user.permissions = {}
-            elif isinstance(current_user.permissions, list):
-                current_user.permissions = {}
+        # Ensure permissions is a dict
+        if not hasattr(current_user, 'permissions') or current_user.permissions is None:
+            current_user.permissions = {}
+        elif isinstance(current_user.permissions, list):
+            current_user.permissions = {}
         
         check_roles(current_user, ["admin"])
         query = db.query(User)
@@ -251,11 +245,10 @@ def list_all_users(
         
         # Fix permissions for all users in the response
         for user in users:
-            if hasattr(user, 'permissions'):
-                if user.permissions is None:
-                    user.permissions = {}
-                elif isinstance(user.permissions, list):
-                    user.permissions = {}
+            if not hasattr(user, 'permissions') or user.permissions is None:
+                user.permissions = {}
+            elif isinstance(user.permissions, list):
+                user.permissions = {}
         
         return users
     except Exception as e:
@@ -270,23 +263,21 @@ def list_users_basic(
 ):
     """Get basic user info for chat/collaboration - accessible to all authenticated users"""
     try:
-        # Defensive fix for permissions
-        if hasattr(current_user, 'permissions'):
-            if current_user.permissions is None:
-                current_user.permissions = {}
-            elif isinstance(current_user.permissions, list):
-                current_user.permissions = {}
+        # Ensure permissions is a dict
+        if not hasattr(current_user, 'permissions') or current_user.permissions is None:
+            current_user.permissions = {}
+        elif isinstance(current_user.permissions, list):
+            current_user.permissions = {}
         
         # Return only active users with basic info
         users = db.query(User).filter(User.is_active == True).all()
         
         # Fix permissions for all users in the response
         for user in users:
-            if hasattr(user, 'permissions'):
-                if user.permissions is None:
-                    user.permissions = {}
-                elif isinstance(user.permissions, list):
-                    user.permissions = {}
+            if not hasattr(user, 'permissions') or user.permissions is None:
+                user.permissions = {}
+            elif isinstance(user.permissions, list):
+                user.permissions = {}
         
         return users
     except Exception as e:
