@@ -277,6 +277,63 @@ def delete_user(user_id: int, db: Session = Depends(get_db), current_user: User 
     db.commit()
     return Response(status_code=204)
 
+# Permission Management Endpoints
+@router.get("/users/{user_id}/permissions")
+def get_user_permissions(user_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Get user permissions - accessible to admins and the user themselves"""
+    if current_user.role != "admin" and current_user.id != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to view this user's permissions")
+    
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return {
+        "user_id": user.id,
+        "permissions": user.permissions or {}
+    }
+
+@router.put("/users/{user_id}/permissions")
+def update_user_permissions(
+    user_id: int, 
+    permissions_data: dict, 
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    """Update user permissions - only admins can do this"""
+    check_roles(current_user, ["admin"])
+    
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Validate permissions data
+    valid_permissions = {
+        'dashboard', 'tasks', 'profile', 'projects', 'companies', 'contacts', 
+        'groups', 'events', 'documents', 'users', 'reports', 'admin_panel', 
+        'payments', 'commissions', 'car_finance', 'daily_calls'
+    }
+    
+    permissions = permissions_data.get('permissions', {})
+    if not isinstance(permissions, dict):
+        raise HTTPException(status_code=400, detail="Permissions must be a dictionary")
+    
+    # Validate that all permission keys are valid
+    for key in permissions.keys():
+        if key not in valid_permissions:
+            raise HTTPException(status_code=400, detail=f"Invalid permission key: {key}")
+    
+    # Update permissions
+    user.permissions = permissions
+    db.commit()
+    db.refresh(user)
+    
+    return {
+        "message": "Permissions updated successfully",
+        "user_id": user.id,
+        "permissions": user.permissions
+    }
+
 @router.post("/auth/request-password-reset", response_model=dict)
 def request_password_reset(request: PasswordResetRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == request.email).first()
