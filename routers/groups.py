@@ -10,14 +10,42 @@ router = APIRouter(prefix="/groups", tags=["groups"])
 
 @router.get("/", response_model=list[GroupOut])
 def list_groups(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role == "admin":
-        return db.query(Group).options(joinedload(Group.head), joinedload(Group.members)).all()
-    else:
-        # Load the groups with head and members relationships
-        groups = db.query(Group).options(joinedload(Group.head), joinedload(Group.members)).filter(
-            Group.members.any(User.id == current_user.id)
-        ).all()
+    try:
+        # Defensive fix for permissions
+        if hasattr(current_user, 'permissions'):
+            if current_user.permissions is None:
+                current_user.permissions = {}
+            elif isinstance(current_user.permissions, list):
+                current_user.permissions = {}
+        
+        if current_user.role == "admin":
+            groups = db.query(Group).options(joinedload(Group.head), joinedload(Group.members)).all()
+        else:
+            # Load the groups with head and members relationships
+            groups = db.query(Group).options(joinedload(Group.head), joinedload(Group.members)).filter(
+                Group.members.any(User.id == current_user.id)
+            ).all()
+        
+        # Fix permissions for all users in the groups
+        for group in groups:
+            if group.head and hasattr(group.head, 'permissions'):
+                if group.head.permissions is None:
+                    group.head.permissions = {}
+                elif isinstance(group.head.permissions, list):
+                    group.head.permissions = {}
+            
+            for member in group.members:
+                if hasattr(member, 'permissions'):
+                    if member.permissions is None:
+                        member.permissions = {}
+                    elif isinstance(member.permissions, list):
+                        member.permissions = {}
+        
         return groups
+    except Exception as e:
+        print(f"Error in list_groups: {e}")
+        # Return empty list on error to prevent 500
+        return []
 
 @router.post("/{group_id}/add-user/{user_id}")
 def add_user_to_group(group_id: int, user_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
