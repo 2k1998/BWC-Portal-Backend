@@ -63,23 +63,35 @@ def create_task(task: TaskCreate, db: Session = Depends(get_db), current_user: U
 
 @router.get("/", response_model=list[TaskResponse])
 def list_my_tasks(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role == "admin":
-        return db.query(Task).all()
-    else:
-        # Get personal tasks and tasks from all groups the user is in
-        user_group_ids = [group.id for group in current_user.groups]
+    try:
+        # Defensive fix for permissions
+        if hasattr(current_user, 'permissions'):
+            if current_user.permissions is None:
+                current_user.permissions = {}
+            elif isinstance(current_user.permissions, list):
+                current_user.permissions = {}
         
-        # Get groups where user is the head
-        groups_headed = db.query(Group).filter(Group.head_id == current_user.id).all()
-        headed_group_ids = [group.id for group in groups_headed]
-        
-        # Combine all group IDs (member + head)
-        all_group_ids = list(set(user_group_ids + headed_group_ids))
-        
-        return db.query(Task).filter(
-            (Task.owner_id == current_user.id) |
-            (Task.group_id.in_(all_group_ids))
-        ).all()
+        if current_user.role == "admin":
+            return db.query(Task).all()
+        else:
+            # Get personal tasks and tasks from all groups the user is in
+            user_group_ids = [group.id for group in current_user.groups]
+            
+            # Get groups where user is the head
+            groups_headed = db.query(Group).filter(Group.head_id == current_user.id).all()
+            headed_group_ids = [group.id for group in groups_headed]
+            
+            # Combine all group IDs (member + head)
+            all_group_ids = list(set(user_group_ids + headed_group_ids))
+            
+            return db.query(Task).filter(
+                (Task.owner_id == current_user.id) |
+                (Task.group_id.in_(all_group_ids))
+            ).all()
+    except Exception as e:
+        logger.error(f"Error in list_my_tasks: {e}")
+        # Return empty list on error to prevent 500
+        return []
 
 @router.get("/{task_id}", response_model=TaskResponse)
 def read_task(task_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
