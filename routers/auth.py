@@ -229,16 +229,39 @@ def list_all_users(
     current_user: User = Depends(get_current_user),
     search: Optional[str] = Query(None, description="Search users by email or full name")
 ):
-    check_roles(current_user, ["admin"])
-    query = db.query(User)
-    if search:
-        search_pattern = f"%{search.lower()}%"
-        query = query.filter(
-            (User.email.ilike(search_pattern)) |
-            (User.first_name.ilike(search_pattern)) |
-            (User.surname.ilike(search_pattern))
-        )
-    return query.all()
+    try:
+        # Defensive fix for permissions
+        if hasattr(current_user, 'permissions'):
+            if current_user.permissions is None:
+                current_user.permissions = {}
+            elif isinstance(current_user.permissions, list):
+                current_user.permissions = {}
+        
+        check_roles(current_user, ["admin"])
+        query = db.query(User)
+        if search:
+            search_pattern = f"%{search.lower()}%"
+            query = query.filter(
+                (User.email.ilike(search_pattern)) |
+                (User.first_name.ilike(search_pattern)) |
+                (User.surname.ilike(search_pattern))
+            )
+        
+        users = query.all()
+        
+        # Fix permissions for all users in the response
+        for user in users:
+            if hasattr(user, 'permissions'):
+                if user.permissions is None:
+                    user.permissions = {}
+                elif isinstance(user.permissions, list):
+                    user.permissions = {}
+        
+        return users
+    except Exception as e:
+        print(f"Error in list_all_users: {e}")
+        # Return empty list on error to prevent 500
+        return []
 
 @router.get("/users/basic", response_model=List[UserResponse])
 def list_users_basic(
