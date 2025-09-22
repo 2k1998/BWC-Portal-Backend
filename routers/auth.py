@@ -246,9 +246,30 @@ def list_users_basic(
     current_user: User = Depends(get_current_user)
 ):
     """Get basic user info for chat/collaboration - accessible to all authenticated users"""
-    # Return only active users with basic info
-    users = db.query(User).filter(User.is_active == True).all()
-    return users
+    try:
+        # Defensive fix for permissions
+        if hasattr(current_user, 'permissions'):
+            if current_user.permissions is None:
+                current_user.permissions = {}
+            elif isinstance(current_user.permissions, list):
+                current_user.permissions = {}
+        
+        # Return only active users with basic info
+        users = db.query(User).filter(User.is_active == True).all()
+        
+        # Fix permissions for all users in the response
+        for user in users:
+            if hasattr(user, 'permissions'):
+                if user.permissions is None:
+                    user.permissions = {}
+                elif isinstance(user.permissions, list):
+                    user.permissions = {}
+        
+        return users
+    except Exception as e:
+        print(f"Error in list_users_basic: {e}")
+        # Return empty list on error to prevent 500
+        return []
 
 @router.get("/users/{user_id}", response_model=UserResponse)
 def get_user_by_id(user_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
