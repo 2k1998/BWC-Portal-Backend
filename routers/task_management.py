@@ -27,8 +27,14 @@ async def assign_task(
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     
-    # Check if user can assign this task (admin, task owner, or manager)
-    if not (current_user.role in ["admin", "Manager", "Head"] or task.owner_id == current_user.id):
+    # Check if user can assign this task (admin, task owner, task creator, or manager)
+    # Allow any user to transfer tasks they created, or admins/managers to assign any task
+    can_assign = (
+        current_user.role in ["admin", "Manager", "Head"] or 
+        task.owner_id == current_user.id or 
+        task.created_by_id == current_user.id
+    )
+    if not can_assign:
         raise HTTPException(status_code=403, detail="Not authorized to assign this task")
     
     # Verify assignee exists
@@ -86,6 +92,84 @@ async def assign_task(
     
     # TODO: Add email notification as background task
     # background_tasks.add_task(send_assignment_email, assignee.email, task.title, current_user.full_name)
+    
+    return db_assignment
+
+@router.post("/transfer", response_model=schemas.TaskAssignmentOut, status_code=status.HTTP_201_CREATED)
+async def transfer_task(
+    transfer_data: schemas.TaskTransferCreate,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Simple task transfer endpoint - allows users to transfer tasks they created to others"""
+    
+    # Verify task exists and user has permission to transfer it
+    task = db.query(models.Task).filter(models.Task.id == transfer_data.task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    # Check if user can transfer this task (admin, task owner, or task creator)
+    can_transfer = (
+        current_user.role in ["admin", "Manager", "Head"] or 
+        task.owner_id == current_user.id or 
+        task.created_by_id == current_user.id
+    )
+    if not can_transfer:
+        raise HTTPException(status_code=403, detail="Not authorized to transfer this task")
+    
+    # Verify assignee exists
+    assignee = db.query(models.User).filter(models.User.id == transfer_data.assigned_to_id).first()
+    if not assignee:
+        raise HTTPException(status_code=404, detail="Assignee not found")
+    
+    # Check if there's already a pending assignment for this task
+    existing_assignment = db.query(models.TaskAssignment).filter(
+        and_(
+            models.TaskAssignment.task_id == transfer_data.task_id,
+            models.TaskAssignment.assigned_to_id == transfer_data.assigned_to_id,
+            models.TaskAssignment.assignment_status.in_([
+                models.TaskAssignmentStatus.PENDING_ACCEPTANCE,
+                models.TaskAssignmentStatus.DISCUSSION_REQUESTED,
+                models.TaskAssignmentStatus.DISCUSSION_ACTIVE
+            ])
+        )
+    ).first()
+    
+    if existing_assignment:
+        raise HTTPException(status_code=400, detail="Task already has a pending assignment to this user")
+    
+    # Create the assignment
+    db_assignment = models.TaskAssignment(
+        task_id=transfer_data.task_id,
+        assigned_by_id=current_user.id,
+        assigned_to_id=transfer_data.assigned_to_id,
+        assignment_message=transfer_data.message or f"Task '{task.title}' has been transferred to you by {current_user.first_name} {current_user.surname}"
+    )
+    
+    db.add(db_assignment)
+    db.commit()
+    db.refresh(db_assignment)
+    
+    # Create notification for assignee
+    notification = models.TaskNotification(
+        user_id=transfer_data.assigned_to_id,
+        task_id=transfer_data.task_id,
+        assignment_id=db_assignment.id,
+        notification_type="task_transferred",
+        title=f"Task Transferred: {task.title}",
+        message=f"{current_user.first_name} {current_user.surname} has transferred a task to you: '{task.title}'",
+        action_url=f"/tasks/assignments/{db_assignment.id}"
+    )
+    db.add(notification)
+    db.commit()
+    
+    # Load relationships for response
+    db_assignment = db.query(models.TaskAssignment).options(
+        joinedload(models.TaskAssignment.assigned_by),
+        joinedload(models.TaskAssignment.assigned_to),
+        joinedload(models.TaskAssignment.task)
+    ).filter(models.TaskAssignment.id == db_assignment.id).first()
     
     return db_assignment
 

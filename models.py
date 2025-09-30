@@ -124,6 +124,10 @@ class User(Base):
     # --- Add this line for permissions ---
     permissions = Column(JSON, default=dict)  # Store dictionary of permission strings
 
+    # Google Calendar integration
+    google_credentials = Column(JSON, nullable=True)
+    google_calendar_sync_enabled = Column(Boolean, default=False, nullable=False)
+
     @property
     def full_name(self) -> str:
         if self.first_name and self.surname:

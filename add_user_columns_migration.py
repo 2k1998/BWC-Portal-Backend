@@ -5,6 +5,7 @@ This script will:
 1. Add the last_seen column to the users table
 2. Add the is_online column to the users table
 3. Add the permissions column to the users table (if missing)
+4. Add Google Calendar columns (google_credentials, google_calendar_sync_enabled)
 """
 
 from sqlalchemy import create_engine, text
@@ -51,6 +52,27 @@ def migrate_users_add_columns():
                     logger.info(f"Added {column_name} column successfully")
                 else:
                     logger.info(f"{column_name} column already exists")
+            
+            # Add Google Calendar columns (PostgreSQL syntax)
+            if 'google_credentials' not in existing_columns:
+                logger.info("Adding google_credentials column to users table...")
+                conn.execute(text("""
+                    ALTER TABLE users 
+                    ADD COLUMN google_credentials JSON
+                """))
+                logger.info("Added google_credentials column successfully")
+            else:
+                logger.info("google_credentials column already exists")
+
+            if 'google_calendar_sync_enabled' not in existing_columns:
+                logger.info("Adding google_calendar_sync_enabled column to users table...")
+                conn.execute(text("""
+                    ALTER TABLE users 
+                    ADD COLUMN google_calendar_sync_enabled BOOLEAN DEFAULT FALSE NOT NULL
+                """))
+                logger.info("Added google_calendar_sync_enabled column successfully")
+            else:
+                logger.info("google_calendar_sync_enabled column already exists")
             
             # Changes are auto-committed in this context
             

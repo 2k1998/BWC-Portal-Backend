@@ -221,6 +221,12 @@ class TaskAssignmentCreate(BaseModel):
     assignment_message: Optional[str] = None
 
 
+class TaskTransferCreate(BaseModel):
+    task_id: int
+    assigned_to_id: int
+    message: Optional[str] = None
+
+
 class TaskAssignmentResponse(BaseModel):
     assignment_status: TaskAssignmentStatus
     response_message: Optional[str] = None

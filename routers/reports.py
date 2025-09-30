@@ -26,6 +26,13 @@ class TasksTimeline(BaseModel):
     date: str
     count: int
 
+class UserTaskStats(BaseModel):
+    user_id: int
+    user_name: str
+    user_email: str
+    owned_tasks: int
+    created_tasks: int
+
 # --- API Endpoints ---
 
 @router.get("/tasks-per-company", response_model=List[TasksPerCompany])
@@ -33,16 +40,23 @@ def get_tasks_per_company(db: Session = Depends(get_db), current_user: models.Us
     """Returns the number of active tasks for each company."""
     check_roles(current_user, ["admin"])
     
-    results = db.query(
-        models.Company.name,
-        func.count(models.Task.id)
-    ).join(models.Task, models.Company.id == models.Task.company_id)\
-    .filter(models.Task.completed == False)\
-    .group_by(models.Company.name)\
-    .order_by(models.Company.name)\
-    .all()
+    # Get all companies first
+    companies = db.query(models.Company).all()
     
-    return [{"company_name": name, "task_count": count} for name, count in results]
+    results = []
+    for company in companies:
+        # Count active tasks for this company
+        task_count = db.query(models.Task).filter(
+            models.Task.company_id == company.id,
+            models.Task.completed == False
+        ).count()
+        
+        results.append({
+            "company_name": company.name,
+            "task_count": task_count
+        })
+    
+    return results
 
 @router.get("/rental-car-status", response_model=List[CarRentalStatus])
 def get_rental_car_status(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
@@ -116,3 +130,70 @@ def get_tasks_completed_timeline(db: Session = Depends(get_db), current_user: mo
         current_date += timedelta(days=1)
     
     return timeline_data
+
+@router.get("/user-task-statistics", response_model=List[UserTaskStats])
+def get_user_task_statistics(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    """Returns statistics about how many tasks each user owns and has created."""
+    check_roles(current_user, ["admin"])
+    
+    # Get all users first
+    all_users = db.query(models.User).all()
+    
+    stats = []
+    for user in all_users:
+        # Count owned tasks
+        owned_count = db.query(models.Task).filter(
+            models.Task.owner_id == user.id
+        ).count()
+        
+        # Count created tasks
+        created_count = db.query(models.Task).filter(
+            models.Task.created_by_id == user.id
+        ).count()
+        
+        stats.append({
+            "user_id": user.id,
+            "user_name": user.full_name or f"{user.first_name or ''} {user.surname or ''}".strip() or user.email,
+            "user_email": user.email,
+            "owned_tasks": owned_count,
+            "created_tasks": created_count
+        })
+    
+    return stats
+
+@router.get("/debug-tasks")
+def debug_tasks(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    """Debug endpoint to check task data"""
+    check_roles(current_user, ["admin"])
+    
+    # Get basic task counts
+    total_tasks = db.query(models.Task).count()
+    active_tasks = db.query(models.Task).filter(models.Task.completed == False).count()
+    completed_tasks = db.query(models.Task).filter(models.Task.completed == True).count()
+    
+    # Get sample tasks
+    sample_tasks = db.query(models.Task).limit(5).all()
+    
+    # Get companies
+    companies = db.query(models.Company).all()
+    
+    # Get users
+    users = db.query(models.User).all()
+    
+    return {
+        "total_tasks": total_tasks,
+        "active_tasks": active_tasks,
+        "completed_tasks": completed_tasks,
+        "sample_tasks": [
+            {
+                "id": task.id,
+                "title": task.title,
+                "company_id": task.company_id,
+                "owner_id": task.owner_id,
+                "created_by_id": task.created_by_id,
+                "completed": task.completed
+            } for task in sample_tasks
+        ],
+        "companies": [{"id": c.id, "name": c.name} for c in companies],
+        "users": [{"id": u.id, "name": u.full_name or u.email} for u in users]
+    }
