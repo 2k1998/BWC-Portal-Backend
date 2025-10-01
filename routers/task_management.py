@@ -27,15 +27,11 @@ async def assign_task(
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     
-    # Check if user can assign this task (admin, task owner, task creator, or manager)
-    # Allow any user to transfer tasks they created, or admins/managers to assign any task
-    can_assign = (
-        current_user.role in ["admin", "Manager", "Head"] or 
-        task.owner_id == current_user.id or 
-        task.created_by_id == current_user.id
-    )
+    # Check if user can assign this task (only the current owner)
+    can_assign = task.owner_id == current_user.id
+    
     if not can_assign:
-        raise HTTPException(status_code=403, detail="Not authorized to assign this task")
+        raise HTTPException(status_code=403, detail="Only the task owner can assign this task")
     
     # Verify assignee exists
     assignee = db.query(models.User).filter(models.User.id == assignment.assigned_to_id).first()
@@ -109,14 +105,11 @@ async def transfer_task(
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     
-    # Check if user can transfer this task (admin, task owner, or task creator)
-    can_transfer = (
-        current_user.role in ["admin", "Manager", "Head"] or 
-        task.owner_id == current_user.id or 
-        task.created_by_id == current_user.id
-    )
+    # Check if user can transfer this task (only the current owner)
+    can_transfer = task.owner_id == current_user.id
+    
     if not can_transfer:
-        raise HTTPException(status_code=403, detail="Not authorized to transfer this task")
+        raise HTTPException(status_code=403, detail="Only the task owner can transfer this task")
     
     # Verify assignee exists
     assignee = db.query(models.User).filter(models.User.id == transfer_data.assigned_to_id).first()
