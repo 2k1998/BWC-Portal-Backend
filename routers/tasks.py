@@ -91,7 +91,7 @@ def list_my_tasks(
 
         q = db.query(Task)
 
-        if current_user.role != "admin":
+        if (current_user.role or "").lower() != "admin":
             user_group_ids = [g.id for g in current_user.groups]
             groups_headed = db.query(Group).filter(Group.head_id == current_user.id).all()
             headed_group_ids = [g.id for g in groups_headed]
@@ -171,7 +171,7 @@ def list_completed_tasks(
     else:
         q = q.filter(Task.completed.is_(True))
 
-    if current_user.role != "admin":
+    if (current_user.role or "").lower() != "admin":
         q = q.filter(Task.owner_id == current_user.id)
 
     q = q.order_by(
