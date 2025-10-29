@@ -1,5 +1,5 @@
 # models.py - FIXED VERSION (Remove the incorrect import line)
-from sqlalchemy import Column, Integer, String, Boolean, Date, ForeignKey, DateTime, Table, Enum, Text, Numeric, JSON
+from sqlalchemy import Column, Integer, String, Boolean, Date, ForeignKey, DateTime, Table, Enum, Text, Numeric, JSON, text
 from sqlalchemy.orm import relationship, validates
 from datetime import datetime, timezone
 from database import Base
@@ -187,7 +187,6 @@ class Task(Base):
     deadline_all_day = Column(Boolean, default=False)
     urgency = Column(Boolean, default=False)
     important = Column(Boolean, default=False)
-    completed = Column(Boolean, default=False)
     
     status = Column(Enum(TaskStatus), default=TaskStatus.new)
     status_comments = Column(Text)
@@ -211,6 +210,10 @@ class Task(Base):
 
     history = relationship("TaskHistory", back_populates="task", cascade="all, delete-orphan")
     assignments = relationship("TaskAssignment", back_populates="task", cascade="all, delete-orphan")
+
+    # Completion tracking
+    completed = Column(Boolean, nullable=False, server_default=text("false"), default=False)
+    completed_at = Column(DateTime, nullable=True)
 
     @validates('status')
     def validate_status(self, key, status):

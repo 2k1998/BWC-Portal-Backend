@@ -13,6 +13,7 @@ import os, re
 import logging
 import time
 from datetime import datetime
+import asyncio  # <-- added
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -100,6 +101,38 @@ async def startup_event():
         # The error will be logged and the app will continue
 
 # -----------------------------
+# Daily cleanup loop: delete tasks completed > 30 days ago
+# (Skips gracefully if 'completed_at' column doesn't exist)
+# -----------------------------
+@app.on_event("startup")
+async def cleanup_completed_tasks_loop():
+    from database import SessionLocal
+    from models import Task
+    from datetime import timedelta
+
+    async def job():
+        while True:
+            try:
+                db = SessionLocal()
+                try:
+                    if hasattr(Task, "completed_at"):
+                        cutoff = datetime.utcnow() - timedelta(days=30)
+                        old = db.query(Task).filter(
+                            Task.completed_at.isnot(None),
+                            Task.completed_at < cutoff
+                        ).all()
+                        if old:
+                            for t in old:
+                                db.delete(t)
+                            db.commit()
+                except Exception as e:
+                    logger.warning(f"Cleanup loop skipped (likely no completed_at column yet): {e}")
+            finally:
+                db.close()
+            await asyncio.sleep(86400)  # daily
+    asyncio.create_task(job())
+
+# -----------------------------
 # CORS (Render-friendly)
 # -----------------------------
 FRONTEND_URL = os.getenv("FRONTEND_URL", "").strip()
@@ -152,10 +185,6 @@ async def log_requests_and_cors(request: Request, call_next):
     return response
 
 # -----------------------------
-# CORS preflight handler (moved after routers to avoid conflicts)
-# -----------------------------
-
-# -----------------------------
 # Static files (serve uploaded files)
 # -----------------------------
 app.mount("/static", StaticFiles(directory="uploads"), name="static")
@@ -194,10 +223,8 @@ app.include_router(websocket.router)
 app.include_router(google_calendar.router)
 
 # -----------------------------
-# CORS preflight handlers (after routers to avoid conflicts)
+# CORS preflight handlers
 # -----------------------------
-
-# Specific CORS handler for tasks endpoint
 @app.options("/tasks/")
 def tasks_cors_preflight():
     return Response(
@@ -322,5 +349,3 @@ async def debug_companies():
         }
     finally:
         db.close()
-
-

@@ -130,7 +130,9 @@ class TaskBase(BaseModel):
     important: bool = False
     company_id: Optional[int] = None
     owner_id: Optional[int] = None
+    completed: Optional[bool] = False
 
+    
 class TaskCreate(TaskBase):
     pass
 
@@ -145,6 +147,7 @@ class TaskUpdate(BaseModel):
     status: Optional[TaskStatus] = None
     company_id: Optional[int] = None
     comment: Optional[str] = None
+    completed: Optional[bool] = None
 
 class TaskStatusEnum(str, Enum):
     NEW = "new"
@@ -168,6 +171,7 @@ class TaskResponse(BaseModel):
     urgency: bool
     important: bool
     completed: bool
+    completed_at: Optional[datetime]
 
     # NEW: Status fields
     status: TaskStatusEnum
