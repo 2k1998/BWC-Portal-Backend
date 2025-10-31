@@ -130,11 +130,12 @@ class TaskBase(BaseModel):
     important: bool = False
     company_id: Optional[int] = None
     owner_id: Optional[int] = None
+    group_id: Optional[int] = None
     completed: Optional[bool] = False
 
     
 class TaskCreate(TaskBase):
-    pass
+    assignee_ids: Optional[List[int]] = None
 
 class TaskUpdate(BaseModel):
     title: Optional[str] = None
@@ -146,6 +147,7 @@ class TaskUpdate(BaseModel):
     important: Optional[bool] = False
     status: Optional[TaskStatus] = None
     company_id: Optional[int] = None
+    group_id: Optional[int] = None
     comment: Optional[str] = None
     completed: Optional[bool] = None
 

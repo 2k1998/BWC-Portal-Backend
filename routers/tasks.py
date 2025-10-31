@@ -3,7 +3,15 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm import joinedload
 from sqlalchemy import and_, or_
 from database import get_db
-from models import Task, User, Group, Notification, TaskHistory  # <-- Import TaskHistory
+from models import (
+    Task,
+    User,
+    Group,
+    Notification,
+    TaskHistory,
+    TaskAssignment,
+    TaskAssignmentStatus,
+)  # <-- Import TaskHistory
 from schemas import TaskCreate, TaskResponse, TaskUpdate, TaskStatusUpdate, TaskStatusEnum
 from .auth import get_current_user
 from .utils import check_roles
@@ -32,8 +40,19 @@ def create_task(task: TaskCreate, db: Session = Depends(get_db), current_user: U
     if not owner:
         raise HTTPException(status_code=404, detail=f"User with id {task_owner_id} not found.")
 
-    # Create a dictionary from the task schema, excluding the owner_id we've already handled
-    task_data = task.dict(exclude={"owner_id"})
+    group_record = None
+    if task.group_id is not None:
+        group_record = (
+            db.query(Group)
+            .options(joinedload(Group.members))
+            .filter(Group.id == task.group_id)
+            .first()
+        )
+        if not group_record:
+            raise HTTPException(status_code=404, detail=f"Group with id {task.group_id} not found.")
+
+    # Create a dictionary from the task schema, excluding fields we've already handled
+    task_data = task.dict(exclude={"owner_id", "assignee_ids"})
     
     # Create task with both owner and creator information
     # Handle case where created_by_id column might not exist yet
@@ -59,15 +78,74 @@ def create_task(task: TaskCreate, db: Session = Depends(get_db), current_user: U
     db.add(new_task)
     db.commit()
     db.refresh(new_task)
-    
-    # Notify the new owner if they are not the creator
+
+    notifications_to_add: list[Notification] = []
+    assignments_to_add: list[TaskAssignment] = []
+
     if new_task.owner_id != current_user.id:
-        notification = Notification(
-            user_id=new_task.owner_id,
-            message=f"{current_user.full_name} has assigned you a new task: '{new_task.title}'",
-            link="/tasks"
+        notifications_to_add.append(
+            Notification(
+                user_id=new_task.owner_id,
+                message=f"{current_user.full_name} has assigned you a new task: '{new_task.title}'",
+                link="/tasks",
+            )
         )
+
+    assignee_ids: list[int] = []
+    if task.assignee_ids:
+        try:
+            assignee_ids = [int(uid) for uid in task.assignee_ids if uid is not None]
+        except (TypeError, ValueError):
+            logger.warning("Invalid assignee_ids provided during task creation: %s", task.assignee_ids)
+            assignee_ids = []
+
+    if task_owner_id and task_owner_id not in assignee_ids:
+        assignee_ids.insert(0, task_owner_id)
+
+    if group_record and group_record.members:
+        for member in group_record.members:
+            if member and member.id is not None:
+                assignee_ids.append(member.id)
+
+    seen_ids: set[int] = set()
+    ordered_assignees: list[int] = []
+    for uid in assignee_ids:
+        if uid not in seen_ids:
+            seen_ids.add(uid)
+            ordered_assignees.append(uid)
+
+    additional_assignee_ids = [uid for uid in ordered_assignees if uid != task_owner_id]
+
+    for assigned_to_id in additional_assignee_ids:
+        assigned_user = db.query(User).filter(User.id == assigned_to_id).first()
+        if not assigned_user:
+            logger.warning("Skipping assignment for unknown user id %s", assigned_to_id)
+            continue
+
+        assignments_to_add.append(
+            TaskAssignment(
+                task_id=new_task.id,
+                assigned_by_id=current_user.id,
+                assigned_to_id=assigned_to_id,
+                assignment_status=TaskAssignmentStatus.pending_acceptance,
+            )
+        )
+
+        notifications_to_add.append(
+            Notification(
+                user_id=assigned_to_id,
+                message=f"{current_user.full_name} has assigned you a new task: '{new_task.title}'",
+                link="/tasks",
+            )
+        )
+
+    for assignment in assignments_to_add:
+        db.add(assignment)
+
+    for notification in notifications_to_add:
         db.add(notification)
+
+    if assignments_to_add or notifications_to_add:
         db.commit()
 
     return new_task

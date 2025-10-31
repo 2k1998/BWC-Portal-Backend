@@ -5,7 +5,7 @@ from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import JSONResponse
 from routers import (
     auth, tasks, groups, calendar, companies, events, cars, rentals, reports,
-    notifications, contacts, daily_calls, projects, sales, payments, car_finance, documents, task_management, chat, approvals, websocket, google_calendar
+    notifications, contacts, daily_calls, projects, sales, payments, car_finance, documents, task_management, chat, approvals, websocket, google_calendar, departments
 )
 from routers.auth import get_current_user
 import models
@@ -221,6 +221,7 @@ app.include_router(chat.router)
 app.include_router(approvals.router)
 app.include_router(websocket.router)
 app.include_router(google_calendar.router)
+app.include_router(departments.router)
 
 # -----------------------------
 # CORS preflight handlers
