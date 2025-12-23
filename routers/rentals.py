@@ -48,10 +48,8 @@ def update_rental_on_return(
     db_rental = db.query(models.Rental).filter(models.Rental.id == rental_id).first()
     if not db_rental:
         raise HTTPException(status_code=404, detail="Rental record not found")
-    if db_rental.is_locked:
-        raise HTTPException(status_code=400, detail="This rental record is locked and cannot be edited.")
 
-    # Update the fields and lock the record
+    # Update the fields and lock the record (remains editable for corrections)
     db_rental.end_kilometers = rental_update.end_kilometers
     db_rental.gas_tank_end = rental_update.gas_tank_end
     db_rental.is_locked = True

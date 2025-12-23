@@ -85,9 +85,16 @@ def delete_car(
     if not car:
         raise HTTPException(status_code=404, detail="Car not found")
     
-    # Safety check: prevent deleting a car if it has active rental records
-    if db.query(models.Rental).filter(models.Rental.car_id == car_id).count() > 0:
-        raise HTTPException(status_code=400, detail="Cannot delete car with active rental records. Please resolve rentals first.")
+    # Safety check: prevent deleting a car if it has active (unlocked) rental records
+    active_rentals = db.query(models.Rental).filter(
+        models.Rental.car_id == car_id,
+        models.Rental.is_locked == False
+    ).count()
+    if active_rentals > 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot delete car with active rental records. Please resolve active rentals first."
+        )
 
     db.delete(car)
     db.commit()
