@@ -48,7 +48,8 @@ def get_tasks_per_company(db: Session = Depends(get_db), current_user: models.Us
         # Count active tasks for this company
         task_count = db.query(models.Task).filter(
             models.Task.company_id == company.id,
-            models.Task.completed == False
+            models.Task.completed == False,
+            models.Task.deleted_at.is_(None),
         ).count()
         
         results.append({
@@ -98,7 +99,8 @@ def get_tasks_completed_timeline(db: Session = Depends(get_db), current_user: mo
         .filter(
             models.TaskHistory.status_to == 'completed',
             func.date(models.TaskHistory.timestamp) >= start_date,
-            func.date(models.TaskHistory.timestamp) <= end_date
+            func.date(models.TaskHistory.timestamp) <= end_date,
+            models.Task.deleted_at.is_(None),
         ).group_by(func.date(models.TaskHistory.timestamp))\
         .order_by(func.date(models.TaskHistory.timestamp))\
         .all()
@@ -112,7 +114,8 @@ def get_tasks_completed_timeline(db: Session = Depends(get_db), current_user: mo
             models.Task.completed == True,
             models.Task.deadline.isnot(None),
             func.date(models.Task.deadline) >= start_date,
-            func.date(models.Task.deadline) <= end_date
+            func.date(models.Task.deadline) <= end_date,
+            models.Task.deleted_at.is_(None),
         ).group_by(func.date(models.Task.deadline))\
         .order_by(func.date(models.Task.deadline))\
         .all()
@@ -143,12 +146,14 @@ def get_user_task_statistics(db: Session = Depends(get_db), current_user: models
     for user in all_users:
         # Count owned tasks
         owned_count = db.query(models.Task).filter(
-            models.Task.owner_id == user.id
+            models.Task.owner_id == user.id,
+            models.Task.deleted_at.is_(None),
         ).count()
         
         # Count created tasks
         created_count = db.query(models.Task).filter(
-            models.Task.created_by_id == user.id
+            models.Task.created_by_id == user.id,
+            models.Task.deleted_at.is_(None),
         ).count()
         
         stats.append({
@@ -167,12 +172,18 @@ def debug_tasks(db: Session = Depends(get_db), current_user: models.User = Depen
     check_roles(current_user, ["admin"])
     
     # Get basic task counts
-    total_tasks = db.query(models.Task).count()
-    active_tasks = db.query(models.Task).filter(models.Task.completed == False).count()
-    completed_tasks = db.query(models.Task).filter(models.Task.completed == True).count()
+    total_tasks = db.query(models.Task).filter(models.Task.deleted_at.is_(None)).count()
+    active_tasks = db.query(models.Task).filter(
+        models.Task.completed == False,
+        models.Task.deleted_at.is_(None),
+    ).count()
+    completed_tasks = db.query(models.Task).filter(
+        models.Task.completed == True,
+        models.Task.deleted_at.is_(None),
+    ).count()
     
     # Get sample tasks
-    sample_tasks = db.query(models.Task).limit(5).all()
+    sample_tasks = db.query(models.Task).filter(models.Task.deleted_at.is_(None)).limit(5).all()
     
     # Get companies
     companies = db.query(models.Company).all()

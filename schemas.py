@@ -174,6 +174,8 @@ class TaskResponse(BaseModel):
     important: bool
     completed: bool
     completed_at: Optional[datetime]
+    deleted_at: Optional[datetime]
+    deleted_by_id: Optional[int]
 
     # NEW: Status fields
     status: TaskStatusEnum

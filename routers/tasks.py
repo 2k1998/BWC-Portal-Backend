@@ -167,7 +167,7 @@ def list_my_tasks(
         elif isinstance(current_user.permissions, list):
             current_user.permissions = {}
 
-        q = db.query(Task)
+        q = db.query(Task).filter(Task.deleted_at.is_(None))
 
         if (current_user.role or "").lower() != "admin":
             user_group_ids = [g.id for g in current_user.groups]
@@ -240,6 +240,7 @@ def list_completed_tasks(
     current_user: User = Depends(get_current_user),
 ):
     q = db.query(Task)
+    q = q.filter(Task.deleted_at.is_(None))
 
     if hasattr(Task, "completed_at"):
         q = q.filter(Task.completed_at.isnot(None))
@@ -262,6 +263,44 @@ def list_completed_tasks(
     ).all()
 
 
+@router.get("/deleted-tasks/list", response_model=list[TaskResponse])
+def list_deleted_tasks(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    cutoff = datetime.utcnow() - timedelta(days=90)
+
+    if (current_user.role or "").lower() == "admin":
+        db.query(Task).filter(
+            Task.deleted_at.isnot(None),
+            Task.deleted_at < cutoff,
+        ).delete(synchronize_session=False)
+        db.commit()
+
+    q = db.query(Task).filter(
+        Task.deleted_at.isnot(None),
+        Task.deleted_at >= cutoff,
+    )
+
+    if (current_user.role or "").lower() != "admin":
+        user_group_ids = [g.id for g in current_user.groups]
+        groups_headed = db.query(Group).filter(Group.head_id == current_user.id).all()
+        headed_group_ids = [g.id for g in groups_headed]
+        all_group_ids = list(set(user_group_ids + headed_group_ids))
+
+        q = q.filter(
+            or_(
+                Task.owner_id == current_user.id,
+                Task.group_id.in_(all_group_ids) if all_group_ids else False,
+            )
+        )
+
+    return q.order_by(Task.deleted_at.desc()).options(
+        joinedload(Task.owner),
+        joinedload(Task.company),
+    ).all()
+
+
 @router.get("/{task_id}", response_model=TaskResponse)
 def read_task(task_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
@@ -270,7 +309,7 @@ def read_task(task_id: int, db: Session = Depends(get_db), current_user: User = 
     # Use joinedload to efficiently fetch the task, its history, and the user for each history entry
     task = db.query(Task).options(
         joinedload(Task.history).joinedload(TaskHistory.changed_by)
-    ).filter(Task.id == task_id).first()
+    ).filter(Task.id == task_id, Task.deleted_at.is_(None)).first()
 
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -368,7 +407,10 @@ def update_task_status(
     Admins can update any task status.
     """
     # Get the task with owner and group information
-    task = db.query(Task).options(joinedload(Task.owner), joinedload(Task.group)).filter(Task.id == task_id).first()
+    task = db.query(Task).options(joinedload(Task.owner), joinedload(Task.group)).filter(
+        Task.id == task_id,
+        Task.deleted_at.is_(None),
+    ).first()
     
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -423,9 +465,23 @@ def delete_task(task_id: int, db: Session = Depends(get_db), current_user: User 
     task = db.query(Task).filter(Task.id == task_id).first()
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-    
-    if not (current_user.role == "admin" or task.owner_id == current_user.id):
+
+    is_admin = current_user.role == "admin"
+    is_owner = task.owner_id == current_user.id
+    is_group_head = False
+    if task.group_id:
+        group = db.query(Group).filter(Group.id == task.group_id).first()
+        if group and group.head_id == current_user.id:
+            is_group_head = True
+
+    if not (is_admin or is_owner or is_group_head):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to delete this task.")
+
+    if task.deleted_at is None:
+        task.deleted_at = datetime.utcnow()
+        task.deleted_by_id = current_user.id
+        db.commit()
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     db.delete(task)
     db.commit()
@@ -441,7 +497,7 @@ def get_task_status_history(
     Get the status change history for a task
     """
     # Check if user can view this task
-    task = db.query(Task).filter(Task.id == task_id).first()
+    task = db.query(Task).filter(Task.id == task_id, Task.deleted_at.is_(None)).first()
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     

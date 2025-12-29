@@ -88,7 +88,10 @@ def delete_company(
         raise HTTPException(status_code=404, detail="Company not found")
     
     # Check if company has associated tasks, cars, or rentals
-    task_count = db.query(models.Task).filter(models.Task.company_id == company_id).count()
+    task_count = db.query(models.Task).filter(
+        models.Task.company_id == company_id,
+        models.Task.deleted_at.is_(None),
+    ).count()
     car_count = db.query(models.Car).filter(models.Car.company_id == company_id).count()
     rental_count = db.query(models.Rental).filter(models.Rental.company_id == company_id).count()
     
@@ -112,5 +115,8 @@ def get_tasks_for_company(
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
     
-    tasks = db.query(models.Task).filter(models.Task.company_id == company_id).all()
+    tasks = db.query(models.Task).filter(
+        models.Task.company_id == company_id,
+        models.Task.deleted_at.is_(None),
+    ).all()
     return tasks

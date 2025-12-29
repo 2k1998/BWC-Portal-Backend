@@ -202,6 +202,7 @@ class Task(Base):
     owner = relationship("User", foreign_keys=[owner_id], back_populates="tasks")
     created_by = relationship("User", foreign_keys=[created_by_id])
     status_updater = relationship("User", foreign_keys=[status_updated_by])
+    deleted_by = relationship("User", foreign_keys="[Task.deleted_by_id]")
     group = relationship("Group")
     company = relationship("Company")
     
@@ -214,6 +215,8 @@ class Task(Base):
     # Completion tracking
     completed = Column(Boolean, nullable=False, server_default=text("false"), default=False)
     completed_at = Column(DateTime, nullable=True)
+    deleted_at = Column(DateTime, nullable=True)
+    deleted_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
 
     @validates('status')
     def validate_status(self, key, status):

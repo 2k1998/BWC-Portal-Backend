@@ -33,7 +33,7 @@ def get_calendar_events(
             )
 
     # 2. Fetch Task Deadlines
-    tasks_query = db.query(Task)
+    tasks_query = db.query(Task).filter(Task.deleted_at.is_(None))
     if current_user.role == "admin":
         tasks_to_include = tasks_query.all()
     else:
@@ -47,7 +47,7 @@ def get_calendar_events(
         # Combine all group IDs (member + head)
         all_group_ids = list(set(user_group_ids + headed_group_ids))
         
-        tasks_to_include = db.query(Task).filter(
+        tasks_to_include = tasks_query.filter(
             (Task.owner_id == current_user.id) | (Task.group_id.in_(all_group_ids))
         ).all()
 

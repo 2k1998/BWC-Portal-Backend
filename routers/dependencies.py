@@ -18,7 +18,7 @@ def get_task_for_update(
     
     Raises HTTPException if the task is not found or the user is not authorized.
     """
-    task = db.query(Task).filter(Task.id == task_id).first()
+    task = db.query(Task).filter(Task.id == task_id, Task.deleted_at.is_(None)).first()
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
 
