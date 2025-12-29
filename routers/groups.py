@@ -153,7 +153,10 @@ def get_group_tasks(group_id: int, db: Session = Depends(get_db), current_user: 
     if not is_admin_or_group_member(current_user, group.members):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to view tasks of this group.")
 
-    return db.query(Task).filter(Task.group_id == group_id).all()
+    return db.query(Task).filter(
+        Task.group_id == group_id,
+        Task.deleted_at.is_(None),
+    ).all()
 
 @router.delete("/{group_id}", status_code=204)
 def delete_group(group_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

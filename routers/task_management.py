@@ -23,7 +23,10 @@ async def assign_task(
     """Assign a task to a user with notification system"""
     
     # Verify task exists and user has permission to assign it
-    task = db.query(models.Task).filter(models.Task.id == assignment.task_id).first()
+    task = db.query(models.Task).filter(
+        models.Task.id == assignment.task_id,
+        models.Task.deleted_at.is_(None),
+    ).first()
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     
@@ -101,7 +104,10 @@ async def transfer_task(
     """Simple task transfer endpoint - allows users to transfer tasks they created to others"""
     
     # Verify task exists and user has permission to transfer it
-    task = db.query(models.Task).filter(models.Task.id == transfer_data.task_id).first()
+    task = db.query(models.Task).filter(
+        models.Task.id == transfer_data.task_id,
+        models.Task.deleted_at.is_(None),
+    ).first()
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     
@@ -244,7 +250,10 @@ async def respond_to_assignment(
     if response.action == "accept":
         assignment.assignment_status = models.TaskAssignmentStatus.ACCEPTED
         # Update task owner
-        task = db.query(models.Task).filter(models.Task.id == assignment.task_id).first()
+        task = db.query(models.Task).filter(
+            models.Task.id == assignment.task_id,
+            models.Task.deleted_at.is_(None),
+        ).first()
         if task:
             task.owner_id = current_user.id
             task.status = models.TaskStatus.RECEIVED  # Update task status
@@ -580,7 +589,10 @@ async def complete_call(
     if call_completion.outcome == "task_accepted":
         assignment.assignment_status = models.TaskAssignmentStatus.ACCEPTED
         # Update task owner
-        task = db.query(models.Task).filter(models.Task.id == assignment.task_id).first()
+        task = db.query(models.Task).filter(
+            models.Task.id == assignment.task_id,
+            models.Task.deleted_at.is_(None),
+        ).first()
         if task:
             task.owner_id = assignment.assigned_to_id
             task.status = models.TaskStatus.RECEIVED
@@ -754,5 +766,4 @@ async def get_my_assignments(
     ).order_by(desc(models.TaskAssignment.assigned_at)).all()
     
     return assignments
-
 
