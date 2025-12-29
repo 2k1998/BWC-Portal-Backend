@@ -239,7 +239,14 @@ async def respond_to_assignment(
     
     if assignment.assignment_status != models.TaskAssignmentStatus.PENDING_ACCEPTANCE:
         raise HTTPException(status_code=400, detail="Assignment has already been responded to")
-    
+
+    task = db.query(models.Task).filter(
+        models.Task.id == assignment.task_id,
+        models.Task.deleted_at.is_(None),
+    ).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
     # Update assignment based on action
     assignment.response_at = datetime.now(timezone.utc)
     assignment.response_message = response.message
@@ -250,13 +257,8 @@ async def respond_to_assignment(
     if response.action == "accept":
         assignment.assignment_status = models.TaskAssignmentStatus.ACCEPTED
         # Update task owner
-        task = db.query(models.Task).filter(
-            models.Task.id == assignment.task_id,
-            models.Task.deleted_at.is_(None),
-        ).first()
-        if task:
-            task.owner_id = current_user.id
-            task.status = models.TaskStatus.RECEIVED  # Update task status
+        task.owner_id = current_user.id
+        task.status = models.TaskStatus.RECEIVED  # Update task status
         
         notification_type = "task_accepted"
         notification_message = f"{current_user.first_name} {current_user.surname} has accepted the task assignment"
@@ -581,6 +583,13 @@ async def complete_call(
     # Check access
     if not (assignment.assigned_to_id == current_user.id or assignment.assigned_by_id == current_user.id):
         raise HTTPException(status_code=403, detail="Not authorized to complete call for this assignment")
+
+    task = db.query(models.Task).filter(
+        models.Task.id == assignment.task_id,
+        models.Task.deleted_at.is_(None),
+    ).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
     
     assignment.call_completed_at = datetime.now(timezone.utc)
     assignment.call_notes = call_completion.call_notes
@@ -589,13 +598,8 @@ async def complete_call(
     if call_completion.outcome == "task_accepted":
         assignment.assignment_status = models.TaskAssignmentStatus.ACCEPTED
         # Update task owner
-        task = db.query(models.Task).filter(
-            models.Task.id == assignment.task_id,
-            models.Task.deleted_at.is_(None),
-        ).first()
-        if task:
-            task.owner_id = assignment.assigned_to_id
-            task.status = models.TaskStatus.RECEIVED
+        task.owner_id = assignment.assigned_to_id
+        task.status = models.TaskStatus.RECEIVED
     elif call_completion.outcome == "task_rejected":
         assignment.assignment_status = models.TaskAssignmentStatus.REJECTED
     elif call_completion.outcome == "needs_follow_up":
@@ -766,4 +770,3 @@ async def get_my_assignments(
     ).order_by(desc(models.TaskAssignment.assigned_at)).all()
     
     return assignments
-

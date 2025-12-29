@@ -265,20 +265,17 @@ def list_completed_tasks(
 
 @router.get("/deleted-tasks/list", response_model=list[TaskResponse])
 def list_deleted_tasks(
-    days: int = 90,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if days and days > 0:
-        cutoff = datetime.utcnow() - timedelta(days=days)
-    else:
-        cutoff = datetime.utcnow() - timedelta(days=90)
+    cutoff = datetime.utcnow() - timedelta(days=90)
 
-    db.query(Task).filter(
-        Task.deleted_at.isnot(None),
-        Task.deleted_at < cutoff,
-    ).delete(synchronize_session=False)
-    db.commit()
+    if (current_user.role or "").lower() == "admin":
+        db.query(Task).filter(
+            Task.deleted_at.isnot(None),
+            Task.deleted_at < cutoff,
+        ).delete(synchronize_session=False)
+        db.commit()
 
     q = db.query(Task).filter(
         Task.deleted_at.isnot(None),
@@ -286,7 +283,17 @@ def list_deleted_tasks(
     )
 
     if (current_user.role or "").lower() != "admin":
-        q = q.filter(Task.owner_id == current_user.id)
+        user_group_ids = [g.id for g in current_user.groups]
+        groups_headed = db.query(Group).filter(Group.head_id == current_user.id).all()
+        headed_group_ids = [g.id for g in groups_headed]
+        all_group_ids = list(set(user_group_ids + headed_group_ids))
+
+        q = q.filter(
+            or_(
+                Task.owner_id == current_user.id,
+                Task.group_id.in_(all_group_ids) if all_group_ids else False,
+            )
+        )
 
     return q.order_by(Task.deleted_at.desc()).options(
         joinedload(Task.owner),
@@ -458,8 +465,16 @@ def delete_task(task_id: int, db: Session = Depends(get_db), current_user: User 
     task = db.query(Task).filter(Task.id == task_id).first()
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-    
-    if not (current_user.role == "admin" or task.owner_id == current_user.id):
+
+    is_admin = current_user.role == "admin"
+    is_owner = task.owner_id == current_user.id
+    is_group_head = False
+    if task.group_id:
+        group = db.query(Group).filter(Group.id == task.group_id).first()
+        if group and group.head_id == current_user.id:
+            is_group_head = True
+
+    if not (is_admin or is_owner or is_group_head):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to delete this task.")
 
     if task.deleted_at is None:
