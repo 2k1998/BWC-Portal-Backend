@@ -302,6 +302,7 @@ def list_deleted_tasks(
 
 
 @router.delete("/deleted-tasks/{task_id}", status_code=204)
+@router.delete("/{task_id}/permanent/", status_code=204)
 def permanently_delete_task(
     task_id: int,
     db: Session = Depends(get_db),
