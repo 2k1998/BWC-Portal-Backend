@@ -47,6 +47,7 @@ async def startup_event():
         # Import and run the migrations
         from add_user_columns_migration import migrate_users_add_columns
         from add_created_by_migration import migrate_tasks_add_created_by
+        from add_task_columns_migration import migrate_tasks_add_columns
         from add_projects_created_by_migration import migrate_projects_add_created_by
         from add_group_head_migration import run_migration as migrate_group_head
         from fix_permissions_migration import migrate_permissions
@@ -56,6 +57,9 @@ async def startup_event():
         
         logger.info("Running created_by migration...")
         migrate_tasks_add_created_by()
+
+        logger.info("Running tasks column migration...")
+        migrate_tasks_add_columns()
         
         logger.info("Running projects created_by migration...")
         migrate_projects_add_created_by()
