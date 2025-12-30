@@ -328,14 +328,22 @@ def permanently_delete_task(
 
 
 @router.get("/{task_id}", response_model=TaskResponse)
-def read_task(task_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def read_task(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    include_deleted: bool = Query(False, description="Include deleted tasks"),
+):
     """
     Retrieves a single task with its full history, including the names of users who made changes.
     """
     # Use joinedload to efficiently fetch the task, its history, and the user for each history entry
-    task = db.query(Task).options(
+    task_query = db.query(Task).options(
         joinedload(Task.history).joinedload(TaskHistory.changed_by)
-    ).filter(Task.id == task_id, Task.deleted_at.is_(None)).first()
+    ).filter(Task.id == task_id)
+    if not include_deleted:
+        task_query = task_query.filter(Task.deleted_at.is_(None))
+    task = task_query.first()
 
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -517,13 +525,17 @@ def delete_task(task_id: int, db: Session = Depends(get_db), current_user: User 
 def get_task_status_history(
     task_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    include_deleted: bool = Query(False, description="Include deleted tasks"),
 ):
     """
     Get the status change history for a task
     """
     # Check if user can view this task
-    task = db.query(Task).filter(Task.id == task_id, Task.deleted_at.is_(None)).first()
+    task_query = db.query(Task).filter(Task.id == task_id)
+    if not include_deleted:
+        task_query = task_query.filter(Task.deleted_at.is_(None))
+    task = task_query.first()
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     
