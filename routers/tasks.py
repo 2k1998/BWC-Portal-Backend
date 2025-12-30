@@ -309,7 +309,7 @@ def permanently_delete_task(
 ):
     task = db.query(Task).filter(Task.id == task_id, Task.deleted_at.isnot(None)).first()
     if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     is_admin = current_user.role == "admin"
     is_owner = task.owner_id == current_user.id
