@@ -20,6 +20,7 @@ def _get_existing_columns(conn):
             SELECT column_name
             FROM information_schema.columns
             WHERE table_name = 'tasks'
+              AND table_schema = current_schema()
         """))
         return {row[0] for row in result.fetchall()}
     except Exception as exc:
