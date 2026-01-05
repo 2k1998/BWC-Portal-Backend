@@ -239,19 +239,39 @@ def list_completed_tasks(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    q = db.query(Task)
-    q = q.filter(Task.deleted_at.is_(None))
+    retention_cutoff = datetime.utcnow() - timedelta(days=90)
+    q = db.query(Task).filter(Task.deleted_at.is_(None))
 
     if hasattr(Task, "completed_at"):
+        if (current_user.role or "").lower() == "admin":
+            db.query(Task).filter(
+                Task.completed_at.isnot(None),
+                Task.completed_at < retention_cutoff,
+                Task.deleted_at.is_(None),
+            ).delete(synchronize_session=False)
+            db.commit()
+
         q = q.filter(Task.completed_at.isnot(None))
+        cutoff = retention_cutoff
         if days and days > 0:
-            cutoff = datetime.utcnow() - timedelta(days=days)
-            q = q.filter(Task.completed_at >= cutoff)
+            days_cutoff = datetime.utcnow() - timedelta(days=days)
+            cutoff = max(retention_cutoff, days_cutoff)
+        q = q.filter(Task.completed_at >= cutoff)
     else:
         q = q.filter(Task.completed.is_(True))
 
     if (current_user.role or "").lower() != "admin":
-        q = q.filter(Task.owner_id == current_user.id)
+        user_group_ids = [g.id for g in current_user.groups]
+        groups_headed = db.query(Group).filter(Group.head_id == current_user.id).all()
+        headed_group_ids = [g.id for g in groups_headed]
+        all_group_ids = list(set(user_group_ids + headed_group_ids))
+
+        q = q.filter(
+            or_(
+                Task.owner_id == current_user.id,
+                Task.group_id.in_(all_group_ids) if all_group_ids else False,
+            )
+        )
 
     q = q.order_by(
         Task.completed_at.desc() if hasattr(Task, "completed_at") else Task.id.desc()
