@@ -50,6 +50,20 @@ def get_cars_for_company(
     cars = db.query(models.Car).filter(models.Car.company_id == company_id).all()
     return cars
 
+@router.get("/{car_id}", response_model=schemas.CarOut)
+def get_car(
+    car_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user) # Ensures user is logged in
+):
+    """
+    Returns a single car by ID.
+    """
+    car = db.query(models.Car).filter(models.Car.id == car_id).first()
+    if not car:
+        raise HTTPException(status_code=404, detail="Car not found")
+    return car
+
 # --- NEW: Endpoint to update a car's details ---
 @router.put("/{car_id}", response_model=schemas.CarOut)
 def update_car(
