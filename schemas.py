@@ -521,9 +521,26 @@ class CarUpdate(CarBase):
     license_plate: Optional[str] = None
     vin: Optional[str] = None
 
+class CarExpenseBase(BaseModel):
+    service_type: str
+    amount: Decimal
+    description: Optional[str] = None
+    transaction_date: date
+    vendor: str
+    mileage: Optional[int] = None
+    receipt_url: Optional[str] = None
+
+class CarExpenseOut(CarExpenseBase):
+    id: int
+    car_id: int
+    created_at: datetime
+    created_by_id: Optional[int] = None
+    model_config = ConfigDict(from_attributes=True)
+
 class CarOut(CarBase):
     id: int
     company_id: int
+    expense_records: List[CarExpenseOut] = []
     model_config = ConfigDict(from_attributes=True)
     
 class RentalBase(BaseModel):
