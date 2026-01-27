@@ -21,12 +21,13 @@ ADMIN_EMAIL = "kabaniskostas1998@gmail.com"
 ADMIN_PASSWORD = "Administrator"
 
 # 2. Define the initial list of companies
+CAR_FLEET_COMPANY_NAME = os.getenv("CAR_FLEET_COMPANY_NAME", "Best Solution Cars")
 INITIAL_COMPANIES = [
     {"name": "Revma Plus IKE"},
     {"name": "Revma Plus Retail AE"},
     {"name": "Revma Plus CC IKE"},
     {"name": "BWC ΙΚΕ"},
-    {"name": "Best Solution Cars"},
+    {"name": CAR_FLEET_COMPANY_NAME},
 ]
 
 # 3. Sample commission rules for the admin user

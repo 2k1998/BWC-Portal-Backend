@@ -54,6 +54,7 @@ class TransactionRecord(BaseModel):
 # API Endpoints
 @router.get("/summary")
 def get_finance_summary(
+    company_id: int,
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
     db: Session = Depends(get_db),
@@ -62,9 +63,8 @@ def get_finance_summary(
     """Get financial summary for car fleet with real data"""
     check_roles(current_user, ["admin"])
     
-    # Get Best Solution Cars company
     company = db.query(models.Company).filter(
-        models.Company.name == "Best Solution Cars"
+        models.Company.id == company_id
     ).first()
     
     if not company:
@@ -232,6 +232,7 @@ def add_car_expense(
 
 @router.get("/transactions")
 def get_car_transactions(
+    company_id: int,
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
     transaction_type: Optional[str] = None,  # 'income' or 'expense'
@@ -241,9 +242,8 @@ def get_car_transactions(
     """Get all car-related financial transactions"""
     check_roles(current_user, ["admin"])
     
-    # Get Best Solution Cars company
     company = db.query(models.Company).filter(
-        models.Company.name == "Best Solution Cars"
+        models.Company.id == company_id
     ).first()
     
     if not company:
@@ -314,15 +314,15 @@ def get_car_transactions(
 
 @router.get("/cars")
 def get_fleet_cars(
+    company_id: int,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    """Get all cars in the Best Solution Cars fleet"""
+    """Get all cars in the specified company's fleet"""
     check_roles(current_user, ["admin"])
     
-    # Get Best Solution Cars company
     company = db.query(models.Company).filter(
-        models.Company.name == "Best Solution Cars"
+        models.Company.id == company_id
     ).first()
     
     if not company:
@@ -346,15 +346,15 @@ def get_fleet_cars(
 
 @router.get("/rentals")
 def get_rental_records(
+    company_id: int,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    """Get all rental records for Best Solution Cars"""
+    """Get all rental records for the specified company"""
     check_roles(current_user, ["admin"])
     
-    # Get Best Solution Cars company
     company = db.query(models.Company).filter(
-        models.Company.name == "Best Solution Cars"
+        models.Company.id == company_id
     ).first()
     
     if not company:

@@ -60,19 +60,23 @@ def get_tasks_per_company(db: Session = Depends(get_db), current_user: models.Us
     return results
 
 @router.get("/rental-car-status", response_model=List[CarRentalStatus])
-def get_rental_car_status(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    """Returns the count of currently rented vs. available cars for 'Best Solution Cars'."""
+def get_rental_car_status(
+    company_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Returns the count of currently rented vs. available cars for a company."""
     check_roles(current_user, ["admin"])
 
-    best_solution_cars = db.query(models.Company).filter(models.Company.name == 'Best Solution Cars').first()
-    if not best_solution_cars:
+    company = db.query(models.Company).filter(models.Company.id == company_id).first()
+    if not company:
         return [] # Return empty if the company doesn't exist
 
-    total_cars = db.query(models.Car).filter(models.Car.company_id == best_solution_cars.id).count()
+    total_cars = db.query(models.Car).filter(models.Car.company_id == company.id).count()
     
     # Count cars that are part of an active (not locked) rental
     rented_cars_count = db.query(models.Rental)\
-        .filter(models.Rental.company_id == best_solution_cars.id, models.Rental.is_locked == False)\
+        .filter(models.Rental.company_id == company.id, models.Rental.is_locked == False)\
         .count()
         
     available_cars = total_cars - rented_cars_count
