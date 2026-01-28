@@ -503,6 +503,7 @@ class CompanyUpdate(BaseModel):
 
 class CompanyOut(CompanyBase):
     id: int
+    display_name: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 # --- Car & Rental Schemas ---
