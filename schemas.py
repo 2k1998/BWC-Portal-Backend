@@ -565,7 +565,6 @@ class CarExpenseOut(CarExpenseBase):
 class CarOut(CarBase):
     id: int
     company_id: int
-    expense_records: List[CarExpenseOut] = []
     model_config = ConfigDict(from_attributes=True)
     
 class RentalBase(BaseModel):
