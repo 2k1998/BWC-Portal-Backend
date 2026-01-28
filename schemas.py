@@ -546,22 +546,6 @@ class CarUpdate(CarBase):
     service_next_date: Optional[date] = None
     tire_change_date: Optional[date] = None
 
-class CarExpenseBase(BaseModel):
-    service_type: str
-    amount: Decimal
-    description: Optional[str] = None
-    transaction_date: date
-    vendor: str
-    mileage: Optional[int] = None
-    receipt_url: Optional[str] = None
-
-class CarExpenseOut(CarExpenseBase):
-    id: int
-    car_id: int
-    created_at: datetime
-    created_by_id: Optional[int] = None
-    model_config = ConfigDict(from_attributes=True)
-
 class CarOut(CarBase):
     id: int
     company_id: int
