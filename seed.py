@@ -21,13 +21,12 @@ ADMIN_EMAIL = "kabaniskostas1998@gmail.com"
 ADMIN_PASSWORD = "Administrator"
 
 # 2. Define the initial list of companies
-CAR_FLEET_COMPANY_NAME = os.getenv("CAR_FLEET_COMPANY_NAME", "Best Solutions Cars")
 INITIAL_COMPANIES = [
     {"name": "Revma Plus IKE"},
     {"name": "Revma Plus Retail AE"},
     {"name": "Revma Plus CC IKE"},
     {"name": "BWC ΙΚΕ"},
-    {"name": CAR_FLEET_COMPANY_NAME},
+    {"name": "Best Solution Cars"},
 ]
 
 # 3. Sample commission rules for the admin user
@@ -74,15 +73,6 @@ def seed_database():
             print(f"Admin user '{ADMIN_EMAIL}' already exists. Skipping.")
 
         # --- Create Initial Companies ---
-        legacy_company = db.query(Company).filter(Company.name == "Best Solution Cars").first()
-        if legacy_company:
-            if not db.query(Company).filter(Company.name == CAR_FLEET_COMPANY_NAME).first():
-                legacy_company.name = CAR_FLEET_COMPANY_NAME
-                db.commit()
-                print("Company 'Best Solution Cars' renamed to 'Best Solutions Cars'.")
-            else:
-                print("Both 'Best Solution Cars' and 'Best Solutions Cars' exist; leaving legacy name unchanged.")
-
         for company_data in INITIAL_COMPANIES:
             company = db.query(Company).filter(Company.name == company_data["name"]).first()
             if not company:
