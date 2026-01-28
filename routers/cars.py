@@ -1,5 +1,8 @@
 # routers/cars.py
 from fastapi import APIRouter, Depends, HTTPException, status, Response
+import logging
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from typing import List
 
@@ -9,6 +12,7 @@ from .auth import get_current_user
 from .utils import check_roles  # Import the role checker
 
 router = APIRouter(prefix="/cars", tags=["cars"])
+logger = logging.getLogger(__name__)
 
 @router.post("/{company_id}", response_model=schemas.CarOut, status_code=status.HTTP_201_CREATED)
 def create_car_for_company(
@@ -47,8 +51,43 @@ def get_cars_for_company(
     """
     Returns a list of all cars for a specific company.
     """
-    cars = db.query(models.Car).filter(models.Car.company_id == company_id).all()
-    return cars
+    try:
+        cars = db.query(models.Car).filter(models.Car.company_id == company_id).all()
+        return cars
+    except SQLAlchemyError as exc:
+        logger.exception("Failed to load cars via ORM for company %s: %s", company_id, exc)
+        try:
+            rows = db.execute(
+                text(
+                    """
+                    SELECT id, manufacturer, model, license_plate, vin, company_id
+                    FROM cars
+                    WHERE company_id = :company_id
+                    """
+                ),
+                {"company_id": company_id},
+            ).mappings().all()
+        except SQLAlchemyError as fallback_exc:
+            logger.exception(
+                "Fallback car query failed for company %s: %s", company_id, fallback_exc
+            )
+            return []
+        return [
+            schemas.CarOut(
+                id=row["id"],
+                manufacturer=row["manufacturer"],
+                model=row["model"],
+                license_plate=row["license_plate"],
+                vin=row["vin"],
+                company_id=row["company_id"],
+                kteo_last_date=None,
+                kteo_next_date=None,
+                service_last_date=None,
+                service_next_date=None,
+                tire_change_date=None,
+            )
+            for row in rows
+        ]
 
 @router.get("/{car_id}", response_model=schemas.CarOut)
 def get_car(
