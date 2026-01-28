@@ -38,9 +38,53 @@ def create_car_for_company(
 
     new_car = models.Car(**car.dict(), company_id=company_id)
     db.add(new_car)
-    db.commit()
-    db.refresh(new_car)
-    return new_car
+    try:
+        db.commit()
+        db.refresh(new_car)
+        return new_car
+    except SQLAlchemyError as exc:
+        db.rollback()
+        logger.exception("Failed to create car via ORM for company %s: %s", company_id, exc)
+        try:
+            row = db.execute(
+                text(
+                    """
+                    INSERT INTO cars (manufacturer, model, license_plate, vin, company_id)
+                    VALUES (:manufacturer, :model, :license_plate, :vin, :company_id)
+                    RETURNING id, manufacturer, model, license_plate, vin, company_id
+                    """
+                ),
+                {
+                    "manufacturer": car.manufacturer,
+                    "model": car.model,
+                    "license_plate": car.license_plate,
+                    "vin": car.vin,
+                    "company_id": company_id,
+                },
+            ).mappings().first()
+            db.commit()
+        except SQLAlchemyError as fallback_exc:
+            db.rollback()
+            logger.exception(
+                "Fallback car insert failed for company %s: %s", company_id, fallback_exc
+            )
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to create car. Please contact support.",
+            ) from fallback_exc
+        return schemas.CarOut(
+            id=row["id"],
+            manufacturer=row["manufacturer"],
+            model=row["model"],
+            license_plate=row["license_plate"],
+            vin=row["vin"],
+            company_id=row["company_id"],
+            kteo_last_date=None,
+            kteo_next_date=None,
+            service_last_date=None,
+            service_next_date=None,
+            tire_change_date=None,
+        )
 
 @router.get("/company/{company_id}", response_model=List[schemas.CarOut])
 def get_cars_for_company(
