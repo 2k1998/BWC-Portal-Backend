@@ -256,6 +256,12 @@ class Company(Base):
     tasks = relationship("Task", back_populates="company")
     cars = relationship("Car", back_populates="company", cascade="all, delete-orphan")
 
+    @property
+    def display_name(self):
+        if self.name == "Best Solution Cars":
+            return "Best Solutions Cars"
+        return self.name
+
 class Event(Base):
     __tablename__ = "events"
     id = Column(Integer, primary_key=True, index=True)
