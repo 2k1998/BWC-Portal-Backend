@@ -51,7 +51,6 @@ async def startup_event():
         from add_projects_created_by_migration import migrate_projects_add_created_by
         from add_group_head_migration import run_migration as migrate_group_head
         from fix_permissions_migration import migrate_permissions
-        from add_car_maintenance_dates_migration import migrate_cars_add_maintenance_dates
         
         logger.info("Running user columns migration...")
         migrate_users_add_columns()
@@ -76,12 +75,6 @@ async def startup_event():
             migrate_permissions()
         except Exception as e:
             logger.warning(f"Permissions migration failed: {e}")
-
-        logger.info("Running car maintenance dates migration...")
-        try:
-            migrate_cars_add_maintenance_dates()
-        except Exception as e:
-            logger.warning(f"Car maintenance dates migration failed: {e}")
         
         # Import and run the table creation
         from database import Base, engine

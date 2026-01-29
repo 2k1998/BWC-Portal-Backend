@@ -512,25 +512,6 @@ class CarBase(BaseModel):
     model: str
     license_plate: str
     vin: str
-    kteo_last_date: Optional[date] = None
-    kteo_next_date: Optional[date] = None
-    service_last_date: Optional[date] = None
-    service_next_date: Optional[date] = None
-    tire_change_date: Optional[date] = None
-
-    @validator("kteo_next_date")
-    def validate_kteo_next_date(cls, value, values):
-        last_date = values.get("kteo_last_date")
-        if value and last_date and value < last_date:
-            raise ValueError("kteo_next_date must be on or after kteo_last_date")
-        return value
-
-    @validator("service_next_date")
-    def validate_service_next_date(cls, value, values):
-        last_date = values.get("service_last_date")
-        if value and last_date and value < last_date:
-            raise ValueError("service_next_date must be on or after service_last_date")
-        return value
 
 class CarCreate(CarBase):
     pass
@@ -540,11 +521,6 @@ class CarUpdate(CarBase):
     model: Optional[str] = None
     license_plate: Optional[str] = None
     vin: Optional[str] = None
-    kteo_last_date: Optional[date] = None
-    kteo_next_date: Optional[date] = None
-    service_last_date: Optional[date] = None
-    service_next_date: Optional[date] = None
-    tire_change_date: Optional[date] = None
 
 class CarOut(CarBase):
     id: int
